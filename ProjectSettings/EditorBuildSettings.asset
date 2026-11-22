@@ -8,5 +8,11 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 1
+    path: Assets/_Project/Scenes/Chase_Street.unity
+    guid: 4fea4a5752e79804bbc49d79429e3cc4
+  - enabled: 1
+    path: Assets/_Project/Scenes/PoliceStation.unity
+    guid: 4c1822b3558fdf54e87ed85ea01b8071
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
