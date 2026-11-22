@@ -10,6 +10,7 @@ using UnityEngine.SceneManagement;
 
 namespace NightChase
 {
+    [InitializeOnLoad]
     static class CinematicStreetUpgrade
     {
         const string ScenePath = "Assets/_Project/Scenes/Chase_Street.unity";
@@ -109,6 +110,7 @@ namespace NightChase
             FinishFacadeLighting(buildings);
             Illuminate(lighting,layer);
             Grade(profile);
+            RefineStreetFronts(root, layer);
             StreetBuilder.VerifyScene();
             VerifyPlayer(camera,player);
             AssetDatabase.SaveAssets();
@@ -156,6 +158,381 @@ namespace NightChase
                 renderer.sharedMaterial = index++ % 3 == 0 ? tungsten : shade;
             }
         }
+        const string RefinedFronts = "Warm brick and storefronts";
+
+        static CinematicStreetUpgrade()
+        {
+            EditorApplication.delayCall += RefineExistingStreet;
+            EditorApplication.delayCall += ExtendStreetEdges;
+            EditorApplication.delayCall += ClosePerimeterOpenings;
+        }
+
+        const string EdgeLayer = "Street beyond the chase route";
+
+        [MenuItem("Tools/Night Chase/Extend Street Edges")]
+        static void ExtendStreetEdges()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (scene.path != ScenePath || scene.isDirty || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            var owner = UnityEngine.Object.FindAnyObjectByType<StreetOwnership>();
+            if (!owner) return;
+            var layer = owner.transform.Find(LayerName);
+            if (!layer || layer.Find(EdgeLayer)) return;
+
+            cube = PrimitiveMesh(PrimitiveType.Cube);
+            BuildStreetEdges(layer);
+            StreetBuilder.VerifyScene();
+            Physics.SyncTransforms();
+            foreach (var direction in new[] {Vector3.right, Vector3.left, Vector3.forward, Vector3.back})
+            {
+                if (!Physics.Raycast(direction*36 + Vector3.up*1.1f, direction, out var hit,5f)
+                    || !hit.collider.transform.IsChildOf(owner.transform))
+                    throw new InvalidOperationException("The street boundary is open toward " + direction);
+            }
+
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (!EditorSceneManager.SaveScene(scene)) throw new IOException("Could not save Chase_Street.");
+            Debug.Log("Night Chase: distant street vistas and four perimeter limits saved.");
+
+            var camera = Camera.main;
+            if (camera && SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null)
+            {
+                var position = camera.transform.position;
+                var rotation = camera.transform.rotation;
+                try
+                {
+                    camera.transform.SetPositionAndRotation(new Vector3(27,1.7f,-23.4f),
+                        Quaternion.LookRotation(new Vector3(1,.018f,-.04f)));
+                    Capture(camera,"Logs/NightChaseStreetEdge.png");
+                }
+                finally { camera.transform.SetPositionAndRotation(position,rotation); }
+            }
+        }
+
+        [MenuItem("Tools/Night Chase/Close Perimeter Openings")]
+        static void ClosePerimeterOpenings()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (scene.path != ScenePath || scene.isDirty || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            var owner = UnityEngine.Object.FindAnyObjectByType<StreetOwnership>();
+            if (!owner) return;
+            var edge = owner.transform.Find(LayerName + "/" + EdgeLayer);
+            if (!edge || edge.Find("Continuous iron perimeter")) return;
+            cube = PrimitiveMesh(PrimitiveType.Cube);
+            var perimeter = Node(edge,"Continuous iron perimeter");
+            var ironMaterial = AssetDatabase.LoadAssetAtPath<Material>(Folder + "/Perimeter weathered iron.mat");
+            const float corner = 38.85f;
+            foreach (var side in new[] { -1f, 1f })
+            {
+                string direction = side < 0 ? "West" : "East";
+                // Match the end piers of each existing access gate.
+                FenceSpan(perimeter,direction+" lower return",new Vector3(side*corner,0,-corner),
+                    new Vector3(side*corner,0,-30.55f),ironMaterial);
+                FenceSpan(perimeter,direction+" side railing",new Vector3(side*corner,0,-17.65f),
+                    new Vector3(side*corner,0,corner),ironMaterial);
+                FenceSpan(perimeter,side < 0 ? "South rear railing" : "North rear railing",
+                    new Vector3(-corner,0,side*corner),new Vector3(corner,0,side*corner),ironMaterial);
+            }
+
+            Physics.SyncTransforms();
+            StreetBuilder.VerifyScene();
+            foreach (Transform span in perimeter)
+            {
+                var rail = span.GetComponent<BoxCollider>();
+                var direction = span.forward;
+                var point = span.position + Vector3.up * 1.1f;
+                if (!rail.Raycast(new Ray(point - direction, direction),out _,2f))
+                    throw new InvalidOperationException("Unblocked iron railing: " + span.name);
+            }
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (!EditorSceneManager.SaveScene(scene)) throw new IOException("Could not save Chase_Street.");
+            Debug.Log($"Night Chase: all six perimeter railing spans verified and saved ({perimeter.childCount} spans).");
+        }
+
+        static void FenceSpan(Transform parent,string name,Vector3 start,Vector3 end,Material material)
+        {
+            float length = Vector3.Distance(start,end);
+            var span = Node(parent,name);
+            span.localPosition = (start+end)*.5f;
+            span.localRotation = Quaternion.LookRotation(Vector3.Cross((end-start).normalized,Vector3.up));
+            var collision = span.gameObject.AddComponent<BoxCollider>();
+            collision.center = Vector3.up*1.12f;
+            collision.size = new Vector3(length+.20f,2.24f,.20f);
+
+            // Separate short meshes so off-screen sections can be culled independently.
+            int count = Mathf.CeilToInt(length/8f);
+            float width = length/count;
+            var path = Folder + "/Iron railing " + width.ToString("F4",System.Globalization.CultureInfo.InvariantCulture) + ".asset";
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (!mesh)
+            {
+                var parts = new System.Collections.Generic.List<CombineInstance>();
+                foreach (float y in new[] {.25f,1.06f,2.12f})
+                    FencePart(parts,new Vector3(0,y,0),new Vector3(width,.075f,.085f));
+                int bars = Mathf.RoundToInt(width/.285f);
+                for (int i = 0; i < bars; i++)
+                    FencePart(parts,new Vector3(-width*.5f+(i+.5f)*width/bars,1.13f,0),
+                        new Vector3(.037f,2.20f,.047f));
+                FencePart(parts,new Vector3(-width*.5f,1.16f,0),new Vector3(.19f,2.32f,.20f));
+                mesh = new Mesh { name = "Iron railing section" };
+                mesh.CombineMeshes(parts.ToArray());
+                AssetDatabase.CreateAsset(mesh,path);
+            }
+            for (int i = 0; i < count; i++)
+                Shape(span,"Iron railing section",material,new Vector3(-length*.5f+(i+.5f)*width,0,0),Vector3.one,mesh);
+            Box(span,"End pier",material,length*.5f,1.16f,0,.19f,2.32f,.20f);
+        }
+
+        static void FencePart(System.Collections.Generic.List<CombineInstance> parts,Vector3 position,Vector3 size)
+        {
+            parts.Add(new CombineInstance { mesh = cube, transform = Matrix4x4.TRS(position,Quaternion.identity,size) });
+        }
+        static void BuildStreetEdges(Transform layer)
+        {
+            var edge = Node(layer,EdgeLayer);
+            var barrier = MaterialAsset("Perimeter weathered iron",new Color(.22f,.218f,.20f),.22f,.32f);
+            var darkGlass = MaterialAsset("Distant window glass",new Color(.16f,.207f,.24f),.36f);
+            var blind = MaterialAsset("Distant blind glass",new Color(.24f,.223f,.187f),.31f);
+            var stone = MaterialAsset("Perimeter cast stone",new Color(.35f,.325f,.29f),.15f);
+            var asphalt = MaterialAsset("Distant matte asphalt",new Color(.17f,.177f,.191f),.055f);
+            var darkBrick = MaterialAsset("Distant soot brick",new Color(.26f,.221f,.208f),.1f);
+            var warmBrick = MaterialAsset("Distant brown brick",new Color(.32f,.239f,.207f),.1f);
+            var lane = MaterialAsset("Distant faded lane paint",new Color(.49f,.464f,.389f),.1f);
+            var bulb = AssetDatabase.LoadAssetAtPath<Material>(Folder + "/Opal wall lantern.mat");
+
+            foreach (float side in new[] {-1f,1f})
+            {
+                var vista = Node(edge,side < 0 ? "West street continuation" : "East street continuation");
+                vista.localPosition = new Vector3(side*40,0,-24.1f);
+                vista.localRotation = Quaternion.Euler(0,side*90,0);
+                Box(vista,"Road extension",asphalt,0,-.14f,18,13,.28f,36);
+                foreach (float bank in new[] {-1f,1f})
+                {
+                    Box(vista,"Sidewalk continuation",stone,bank*6.2f,.066f,18,1.9f,.132f,36);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var block = Node(vista,"Background brick row");
+                        block.localPosition = new Vector3(bank*7.2f,0,6+i*11.7f);
+                        block.localRotation = Quaternion.Euler(0,-bank*90,0);
+                        BackdropFacade(block,11.4f,10.2f+((i+(side>0 ? 1 : 0))%3)*2.6f,
+                            bank < 0 ? darkBrick : warmBrick,stone,darkGlass,blind);
+                    }
+                }
+
+                for (int i = 0; i < 7; i++)
+                    Box(vista,"Distant broken lane line",lane,0,.008f,2.6f+i*4.2f,.09f,.012f,2.1f);
+
+                for (int i = 0; i < 2; i++)
+                {
+                    float z = 8+i*13;
+                    Box(vista,"Distant lamp post",barrier,5.6f,2.2f,z,.102f,4.4f,.102f);
+                    Box(vista,"Distant lamp bracket",barrier,5.28f,4.28f,z,.75f,.089f,.10f);
+                    if (bulb) Box(vista,"Distant lamp diffuser",bulb,4.95f,4.21f,z,.24f,.066f,.26f);
+                    Spot(vista,"Distant sodium pool",vista.TransformPoint(new Vector3(4.95f,4.14f,z)),
+                        vista.TransformPoint(new Vector3(3.7f,.1f,z)),new Color(1,.73f,.48f),14,9,108);
+                }
+
+                // Recessed see-through maintenance gates sit on the playable side of the seam.
+                var gate = Node(vista,"Closed municipal access");
+                gate.localPosition = new Vector3(0,0,-1.15f);
+                foreach (float x in new[] {-6.45f,0f,6.45f})
+                    Box(gate,"Gate pier",barrier,x,1.16f,0,.19f,2.32f,.20f);
+                foreach (float y in new[] {.25f,1.06f,2.12f})
+                    Box(gate,"Gate cross rail",barrier,0,y,0,13.05f,.075f,.085f);
+                for (int i = -22; i <= 22; i++)
+                    Box(gate,"Iron gate picket",barrier,i*.285f,1.13f,0,.037f,2.20f,.047f);
+                Box(gate,"Opaque service plaque",stone,0,1.48f,-.065f,.83f,.28f,.035f);
+                Box(gate,"Gate lock",barrier,.12f,1.10f,-.085f,.13f,.20f,.14f);
+                var gateCollider = gate.gameObject.AddComponent<BoxCollider>();
+                gateCollider.center = new Vector3(0,1.12f,0);
+                gateCollider.size = new Vector3(13.2f,2.24f,.20f);
+                Spot(vista,"Gate marker light",vista.TransformPoint(new Vector3(-3.2f,4.7f,1f)),
+                    vista.TransformPoint(new Vector3(-1f,.7f,-1f)),new Color(1,.73f,.46f),10,10,104);
+            }
+
+            // A second row of roofs covers side openings and the horizon behind the original block.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                for (int i = 0; i < 6; i++)
+                {
+                    var rear = Node(edge,"Rear skyline block");
+                    rear.localPosition = new Vector3(-47+i*18.4f,-.05f,side*(49+i%2*2));
+                    rear.localRotation = Quaternion.Euler(0,side > 0 ? 180 : 0,0);
+                    BackdropFacade(rear,17.9f,15+(i*7)%11,i%2 == 0 ? darkBrick : warmBrick,stone,darkGlass,blind);
+                }
+                foreach (float z in new[] { -46f, 6f, 21f, 36f })
+                {
+                    var rear = Node(edge,"Side skyline block");
+                    rear.localPosition = new Vector3(side*48,-.05f,z);
+                    rear.localRotation = Quaternion.Euler(0,-side*90,0);
+                    BackdropFacade(rear,14.7f,13+Mathf.Abs(z)%9,darkBrick,stone,darkGlass,blind);
+                }
+                PerimeterLimit(edge,new Vector3(side*39.65f,3,0),new Vector3(.35f,6,80));
+                PerimeterLimit(edge,new Vector3(0,3,side*39.65f),new Vector3(80,6,.35f));
+            }
+        }
+
+        static void PerimeterLimit(Transform parent, Vector3 position, Vector3 size)
+        {
+            var limit = Node(parent,"Perimeter safety collider");
+            limit.localPosition = position;
+            limit.gameObject.AddComponent<BoxCollider>().size = size;
+        }
+
+        static void BackdropFacade(Transform parent,float width,float height,Material wall,Material stone,
+            Material darkGlass,Material blind)
+        {
+            Box(parent,"Distant masonry",wall,0,height*.5f,-4.1f,width,height,8.2f);
+            Box(parent,"Roof silhouette",stone,0,height,.015f,width+.15f,.29f,.31f);
+            Box(parent,"Ground floor band",stone,0,3.18f,.06f,width,.14f,.23f);
+            int bays = Mathf.FloorToInt(width/2.55f);
+            int floors = Mathf.FloorToInt((height-1.1f)/2.7f);
+            for (int floor = 0; floor < floors; floor++)
+            for (int bay = 0; bay < bays; bay++)
+            {
+                float x = ((bay+.5f)/bays-.5f)*width;
+                float y = 1.7f+floor*2.7f;
+                Box(parent,"Distant window", (bay+floor*3)%7 == 2 ? blind : darkGlass,
+                    x,y,.018f,1.01f,1.51f,.059f);
+                Box(parent,"Sill silhouette",stone,x,y-.79f,.057f,1.14f,.084f,.19f);
+            }
+        }
+
+        [MenuItem("Tools/Night Chase/Refine Storefronts")]
+        static void RefineExistingStreet()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (scene.path != ScenePath || scene.isDirty || EditorApplication.isPlayingOrWillChangePlaymode) return;
+            var ownership = UnityEngine.Object.FindAnyObjectByType<StreetOwnership>();
+            if (!ownership) return;
+            var layer = ownership.transform.Find(LayerName);
+            if (!layer) return;
+            if (layer.Find(RefinedFronts))
+            {
+                if (RestoreGlazingEmission() && Camera.main
+                    && SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null) Capture(Camera.main);
+                return;
+            }
+            cube = PrimitiveMesh(PrimitiveType.Cube);
+            RefineStreetFronts(ownership.transform, layer);
+            StreetBuilder.VerifyScene();
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.MarkSceneDirty(scene);
+            if (!EditorSceneManager.SaveScene(scene)) throw new IOException("Could not save Chase_Street.");
+            Debug.Log("Night Chase: luminous signage replaced with quiet, warm storefronts.");
+            if (Camera.main && SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null) Capture(Camera.main);
+        }
+
+        static bool RestoreGlazingEmission()
+        {
+            bool changed = false;
+            foreach (string name in new[] { "Amber ground-floor glazing", "Amber transom glazing",
+                "Shaded shop glazing", "Opal wall lantern", "Warm residential window", "Shaded residential window" })
+            {
+                var material = AssetDatabase.LoadAssetAtPath<Material>(Folder + "/" + name + ".mat");
+                if (!material || material.IsKeywordEnabled("_EMISSION")) continue;
+                material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.BakedEmissive;
+                material.EnableKeyword("_EMISSION");
+                EditorUtility.SetDirty(material);
+                changed = true;
+            }
+            if (changed) AssetDatabase.SaveAssets();
+            return changed;
+        }
+
+        static void RefineStreetFronts(Transform root, Transform layer)
+        {
+            var finishes = Node(layer, RefinedFronts);
+            var wood = MaterialAsset("Painted storefront timber",new Color(.225f,.211f,.177f),.28f);
+            var coping = MaterialAsset("Aged limestone dressings",new Color(.51f,.459f,.39f),.15f);
+            var glazing = MaterialAsset("Amber ground-floor glazing",new Color(.55f,.41f,.27f),.25f,0,
+                new Color(.90f,.47f,.175f));
+            var shadeGlass = MaterialAsset("Amber transom glazing",new Color(.57f,.45f,.31f),.27f,0,
+                new Color(1.28f,.78f,.39f));
+            var shadowGlass = MaterialAsset("Shaded shop glazing",new Color(.38f,.32f,.23f),.25f,0,
+                new Color(.32f,.21f,.11f));
+            var wallLamp = MaterialAsset("Opal wall lantern",new Color(.94f,.72f,.43f),.23f,0,
+                new Color(2.3f,1.45f,.70f));
+
+            foreach (string name in new[] { "Hudson building", "Laundromat" })
+            {
+                Transform oldFront = layer.Find("Facades/" + name);
+                foreach (Transform item in oldFront)
+                {
+                    switch (item.name)
+                    {
+                        case "Storefront fascia": case "Fascia cap": case "Illuminated underline":
+                        case "Lettering": case "Storefront canopy": case "Canopy valance":
+                        case "Storefront mullion": case "Laundry corner blade sign":
+                            item.gameObject.SetActive(false);
+                            break;
+                    }
+                }
+                var original = root.Find("Environment/Buildings/" + name + "/Facade 1");
+                foreach (Transform item in original)
+                {
+                    if (item.name == "Sign cabinet" || item.name == "Neon trim" ||
+                        item.name == "Storefront spill" || item.GetComponent<TextMesh>())
+                        item.gameObject.SetActive(false);
+                }
+
+                var front = Node(finishes,name);
+                front.SetPositionAndRotation(oldFront.position,oldFront.rotation);
+                bool deli = name == "Hudson building";
+                float warm = deli ? 1 : -1;
+                foreach (float side in new[] { -1f, 1f })
+                {
+                    float x = side*2.07f;
+                    var bayGlass = side == warm ? glazing : shadowGlass;
+                    Box(front,"Recessed shop glazing",bayGlass,x,1.43f,.362f,2.35f,1.80f,.041f);
+                    Box(front,"Warm transom behind sash",side == warm ? shadeGlass : shadowGlass,
+                        x,2.49f,.363f,2.35f,.36f,.042f);
+                    Box(front,"Painted kick panel",wood,x,.28f,.414f,2.51f,.46f,.139f);
+                    Box(front,"Sill and drip edge",coping,x,.545f,.435f,2.56f,.074f,.25f);
+                    Box(front,"Window head",wood,x,2.72f,.414f,2.52f,.128f,.16f);
+                    Box(front,"Transom rail",wood,x,2.295f,.414f,2.49f,.087f,.123f);
+                    for (int mullion = -1; mullion <= 1; mullion++)
+                        Box(front,"Timber glazing mullion",wood,x+mullion*.81f,1.60f,.438f,.067f,2.09f,.093f);
+                    // Low silhouettes keep the shopfront from reading as a single neon panel.
+                    for (int display = 0; display < 4; display++)
+                        Box(front,"Silhouette behind glass",wood,x-.85f+display*.49f,.67f+(display%2)*.046f,
+                            .387f,.19f+.045f*display,.16f+(display%3)*.056f,.025f);
+                }
+
+                Box(front,"Recessed timber fascia",wood,0,2.985f,.32f,7.26f,.38f,.24f);
+                Box(front,"Sandstone shop cornice",coping,0,3.18f,.348f,7.52f,.13f,.354f);
+                Box(front,"Cornice shadow joint",wood,0,3.08f,.515f,7.42f,.041f,.034f);
+                foreach (float x in new[] { -3.39f,-.79f,.79f,3.39f })
+                {
+                    Box(front,"Pilaster casing",wood,x,1.49f,.382f,.17f,2.73f,.236f);
+                    Box(front,"Plinth block",coping,x,.31f,.46f,.24f,.28f,.31f);
+                    Box(front,"Pilaster cap",coping,x,2.81f,.436f,.24f,.17f,.29f);
+                }
+                Box(front,"Narrow door glazing",shadowGlass,0,1.62f,.321f,.57f,.89f,.032f);
+                Box(front,"Door lintel",coping,0,2.43f,.313f,1.35f,.105f,.24f);
+                foreach (float x in new[] { -3.57f,3.57f })
+                {
+                    Box(front,"Lantern backplate",wood,x,2.48f,.15f,.21f,.36f,.12f);
+                    Box(front,"Lantern glass",wallLamp,x,2.48f,.26f,.118f,.22f,.118f);
+                    Box(front,"Lantern cap",wood,x,2.616f,.26f,.168f,.057f,.161f);
+                }
+
+                var windowCenter = front.TransformPoint(new Vector3(warm*2.1f,2.07f,1.08f));
+                Spot(front,"Soft amber spill on pavement",windowCenter,front.TransformPoint(new Vector3(warm*1.5f,.1f,3.15f)),
+                    new Color(1,.74f,.48f),19,9,105);
+                Spot(front,"Facade and fire escape fill",front.TransformPoint(new Vector3(warm*2.75f,3.8f,4.5f)),
+                    front.TransformPoint(new Vector3(warm*1.35f,6.1f,.1f)),new Color(1,.80f,.60f),14,13,87);
+            }
+
+            var priorAccents = layer.Find("Entrance and corner lights");
+            foreach (string name in new[] { "Hudson canopy", "Laundry blade spill" })
+            {
+                var prior = priorAccents.Find(name);
+                if (prior) prior.gameObject.SetActive(false);
+            }
+        }
         static Mesh PrimitiveMesh(PrimitiveType type)
         {
             var source = GameObject.CreatePrimitive(type);
@@ -197,6 +574,7 @@ namespace NightChase
             material.SetFloat("_Metallic",metal);
             if (emission.maxColorComponent > 0)
             {
+                material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.BakedEmissive;
                 material.EnableKeyword("_EMISSION");
                 material.SetColor("_EmissionColor",emission);
             }
@@ -491,7 +869,7 @@ namespace NightChase
             Debug.Log("Cinematic verification: PlayerStart, main camera, and CharacterController are present.");
         }
 
-        static void Capture(Camera camera)
+        static void Capture(Camera camera, string outputPath = "Logs/NightChaseCinematic.png")
         {
             var frame = new RenderTexture(1440,810,24,RenderTextureFormat.ARGB32);
             var previous = RenderTexture.active;
@@ -502,7 +880,7 @@ namespace NightChase
                 RenderTexture.active = frame;
                 image = new Texture2D(frame.width,frame.height,TextureFormat.RGB24,false);
                 image.ReadPixels(new Rect(0,0,frame.width,frame.height),0,0);
-                File.WriteAllBytes("Logs/NightChaseCinematic.png",image.EncodeToPNG());
+                File.WriteAllBytes(outputPath,image.EncodeToPNG());
             }
             finally
             {
