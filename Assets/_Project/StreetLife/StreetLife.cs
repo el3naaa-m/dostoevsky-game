@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Animations;
-using UnityEngine.Playables;
 using UnityEngine.SceneManagement;
 
 namespace NightChase
@@ -53,9 +51,7 @@ namespace NightChase
             public Rigidbody Body;
             public Vector3 Start, End;
             public float Speed, Offset;
-            public PlayableGraph Graph;
-            public AnimationClipPlayable Walk;
-            public float WalkCycle;
+            public MixamoNpcVisual Visual;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -83,12 +79,12 @@ namespace NightChase
             cars[2] = CreateCar("taxi", 1.88f, 1.65f, 4.76f, .33f, taxiSpeed, true, taxiStart);
             cars[2].Tactical = true;
 
-            walkers[0] = CreateWalker("Man", -28, -12, -27.6f, 1.29f, 0, new Color(.34f, .16f, .24f));
-            walkers[1] = CreateWalker("Woman", 7, -7, -27.5f, 1.12f, 3, new Color(.34f, .30f, .15f));
-            walkers[2] = CreateWalker("Man", 12, 28, -27.45f, 1.39f, 6, new Color(.20f, .34f, .27f));
-            walkers[3] = CreateWalker("Woman", -12, -2, -15.65f, 1.16f, 3, new Color(.38f, .21f, .15f));
-            walkers[4] = CreateWalker("Man", 10, 1, -15.75f, 1.33f, 1, new Color(.23f, .26f, .36f));
-            walkers[5] = CreateWalker("Woman", -27, -12, -26.75f, 1.21f, 16, new Color(.38f, .38f, .24f));
+            walkers[0] = CreateWalker("Ch07", -28, -12, -27.6f, 1.29f, 0, new Color(.34f, .16f, .24f));
+            walkers[1] = CreateWalker("Remy", 7, -7, -27.5f, 1.12f, 3, new Color(.34f, .30f, .15f));
+            walkers[2] = CreateWalker("Ch08", 12, 28, -27.45f, 1.39f, 6, new Color(.20f, .34f, .27f));
+            walkers[3] = CreateWalker("Ch22", -12, -2, -15.65f, 1.16f, 3, new Color(.38f, .21f, .15f));
+            walkers[4] = CreateWalker("Ch33", 10, 1, -15.75f, 1.33f, 1, new Color(.23f, .26f, .36f));
+            walkers[5] = CreateWalker("Ch06", -27, -12, -26.75f, 1.21f, 16, new Color(.38f, .38f, .24f));
 
             UpdateTraffic(true);
         }
@@ -190,19 +186,11 @@ namespace NightChase
             }
 
             foreach (var walker in walkers)
-            {
-                if (!walker.Graph.IsValid()) continue;
-                walker.WalkCycle = Mathf.Repeat(walker.WalkCycle + Time.deltaTime * walker.Speed / 1.25f,
-                    walker.Walk.GetAnimationClip().length);
-                walker.Walk.SetTime(walker.WalkCycle);
-                walker.Graph.Evaluate();
-            }
+                if (walker.Visual) walker.Visual.Pose(walker.Speed, Time.deltaTime);
         }
 
         void OnDestroy()
         {
-            foreach (var walker in walkers)
-                if (walker != null && walker.Graph.IsValid()) walker.Graph.Destroy();
             foreach (var material in convertedMaterials.Values)
                 Destroy(material);
         }
@@ -307,45 +295,8 @@ namespace NightChase
                 Offset = offset
             };
 
-            var model = CreateModel(modelName, body.transform);
-            if (!model) return walker;
-
-            var renderers = model.GetComponentsInChildren<SkinnedMeshRenderer>();
-            if (renderers.Length > 0)
-            {
-                Bounds bounds = renderers[0].bounds;
-                foreach (var renderer in renderers)
-                    bounds.Encapsulate(renderer.bounds);
-                float scale = 1.72f / bounds.size.y;
-                model.transform.localScale *= scale;
-                model.transform.localPosition -= Vector3.up * (bounds.min.y * scale);
-
-                var color = new MaterialPropertyBlock();
-                color.SetColor("_BaseColor", jacket);
-                foreach (var renderer in renderers)
-                {
-                    var materials = renderer.sharedMaterials;
-                    for (int i = 0; i < materials.Length; i++)
-                        if (materials[i] && materials[i].name == "Shirt") renderer.SetPropertyBlock(color, i);
-                }
-            }
-
-            var animator = model.GetComponent<Animator>();
-            if (!animator) animator = model.AddComponent<Animator>();
-            foreach (var clip in Resources.LoadAll<AnimationClip>(ModelPath + modelName))
-            {
-                if (clip.legacy || clip.length <= 0 || clip.name != "Walk")
-                    continue;
-
-                animator.applyRootMotion = false;
-                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-                walker.Walk = AnimationPlayableUtilities.PlayClip(animator, clip, out walker.Graph);
-                walker.Graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
-                walker.WalkCycle = Mathf.Repeat(offset, clip.length);
-                return walker;
-            }
-
-            Debug.LogWarning($"Street Life: missing Walk clip on {modelName}.", model);
+            string path = "MixamoNpc/" + modelName;
+            walker.Visual = MixamoNpcVisual.Create(body.transform, path, jacket, offset);
             return walker;
         }
 

@@ -1,8 +1,6 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.Animations;
-using UnityEngine.Playables;
 
 namespace NightChase
 {
@@ -14,12 +12,10 @@ namespace NightChase
         int nextPoint;
         Vector3 destination;
         float retryPathAt;
-        PlayableGraph graph;
-        AnimationClipPlayable walk;
-        float cycle;
         Transform upperArm, forearm;
         Transform reachTarget;
-        Transform visual;
+        MixamoNpcVisual visual;
+        public Animator Anim => visual ? visual.Animator : null;
         bool traversing;
         float traversalPose;
         Vector3 navTarget;
@@ -53,7 +49,7 @@ namespace NightChase
             capsule.radius = 0.35f;
             capsule.center = new Vector3(0, 0.9f, 0);
 
-            runner.LoadModel(modelPath ?? "StreetLife/Man", shirt);
+            runner.LoadModel(modelPath ?? "MixamoNpc/Ch06", shirt);
             return runner;
         }
 
@@ -165,103 +161,25 @@ namespace NightChase
 
         void LoadModel(string modelPath, Color shirt)
         {
-            var prefab = Resources.Load<GameObject>(modelPath);
-            if (!prefab)
-            {
-                Debug.LogWarning($"NPC модель не найдена по Resources пути: {modelPath}");
-                return;
-            }
-
-            var model = Instantiate(prefab, transform, false);
-            visual = model.transform;
-            var skin = model.GetComponentInChildren<SkinnedMeshRenderer>();
-            if (skin && skin.bounds.size.y > .01f)
-            {
-                Bounds bounds = skin.bounds;
-                float scale = 1.75f / bounds.size.y;
-                visual.localScale *= scale;
-                visual.localPosition += Vector3.up * ((transform.position.y - bounds.min.y) * scale);
-
-                // Материалы под URP-пайплайн проекта. Кофта преступника — синяя.
-                bool isCriminal = shirt.r < 0.2f && shirt.g < 0.4f && shirt.b > 0.5f;
-                var materials = skin.sharedMaterials;
-                bool shirtTinted = false;
-                for (int i = 0; i < materials.Length; i++)
-                {
-                    if (materials[i] && materials[i].name == "Shirt")
-                    {
-                        var properties = new MaterialPropertyBlock();
-                        properties.SetColor("_Color", shirt);
-                        properties.SetColor("_BaseColor", shirt);
-                        skin.SetPropertyBlock(properties, i);
-                        shirtTinted = true;
-                    }
-                }
-                if (!shirtTinted)
-                {
-                    var fallback = isCriminal
-                        ? Resources.Load<Material>("MixamoNpc/Materials/NPC_Criminal")
-                        : Resources.Load<Material>("MixamoNpc/Materials/NPC_Civilian");
-                    if (fallback)
-                    {
-                        for (int i = 0; i < materials.Length; i++)
-                            if (materials[i]) materials[i] = fallback;
-                        skin.sharedMaterials = materials;
-                    }
-                }
-
-                foreach (var bone in skin.bones)
-                {
-                    if (bone.name == "UpperArm.R") upperArm = bone;
-                    if (bone.name == "LowerArm.R") forearm = bone;
-                }
-            }
-
-            var animator = model.GetComponent<Animator>();
-            if (!animator) animator = model.AddComponent<Animator>();
-            animator.applyRootMotion = false;
-            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-            string walkPath = modelPath.StartsWith("MixamoNpc/")
-                ? "MixamoNpc/Motion/Walk"
-                : modelPath;
-            AnimationClip walkClip = null;
-            foreach (var clip in Resources.LoadAll<AnimationClip>(walkPath))
-            {
-                if (clip.legacy || clip.length <= 0) continue;
-                if (clip.name.IndexOf("walk", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    walkClip = clip;
-                    break;
-                }
-                if (walkClip == null) walkClip = clip;
-            }
-            if (walkClip)
-            {
-                walk = AnimationPlayableUtilities.PlayClip(animator, walkClip, out graph);
-                graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
-            }
+            bool suspect = modelPath.EndsWith("/StreetCivilian", System.StringComparison.Ordinal);
+            visual = MixamoNpcVisual.Create(transform, modelPath,
+                suspect ? new Color(.14f, .42f, .98f) : shirt, 0f);
+            if (!visual) return;
+            upperArm = visual.Bone(HumanBodyBones.RightUpperArm, "RightArm");
+            forearm = visual.Bone(HumanBodyBones.RightLowerArm, "RightForeArm");
         }
 
         void LateUpdate()
         {
-            if (graph.IsValid())
-            {
-                float speed = traversing ? 0 : agent.velocity.magnitude;
-                cycle = speed > .1f
-                    ? Mathf.Repeat(cycle + Time.deltaTime * Mathf.Min(speed / 1.25f, 2.6f), walk.GetAnimationClip().length)
-                    : .12f;
-                walk.SetTime(cycle);
-                graph.Evaluate();
-            }
-
             if (!visual) return;
+            visual.Pose(traversing ? 0 : agent.velocity.magnitude, Time.deltaTime);
             if (!reachTarget)
             {
-                visual.localRotation = Quaternion.Euler(24f * traversalPose, 0, 0);
+                visual.transform.localRotation = Quaternion.Euler(24f * traversalPose, 0, 0);
                 return;
             }
 
-            visual.localRotation = Quaternion.Euler(12f, 0, 0);
+            visual.transform.localRotation = Quaternion.Euler(12f, 0, 0);
             if (upperArm && forearm)
             {
                 var handDirection = reachTarget.position - upperArm.position;
@@ -271,9 +189,5 @@ namespace NightChase
             }
         }
 
-        void OnDestroy()
-        {
-            if (graph.IsValid()) graph.Destroy();
-        }
     }
 }

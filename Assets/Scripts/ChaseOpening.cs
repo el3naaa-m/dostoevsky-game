@@ -10,6 +10,8 @@ namespace NightChase
         public const string ScenePath = "Assets/_Project/Scenes/Chase_Street.unity";
 
         [SerializeField] Vector3 openingPosition = new Vector3(-35.49895f, .177f, -25.52321f);
+        [SerializeField] string suspectModel = "MixamoNpc/Ch31";
+        [SerializeField] string partnerModel = "MixamoNpc/Ch33";
         [SerializeField] Vector3 suspectStart = new Vector3(-23.8f, 0, -25.85f);
         [SerializeField] Vector3[] suspectWaypoints =
         {
@@ -38,7 +40,7 @@ namespace NightChase
             new Vector3(-19.5f, 0, 8f)
         };
         [SerializeField, Min(1)] float warningDistance = 22f;
-        [SerializeField, Min(1)] float suspectRunSpeed = 6.45f;
+        [SerializeField, Min(1)] float suspectRunSpeed = 6.6f;
 
         FirstPersonController player;
         StreetOwnership street;
@@ -118,11 +120,11 @@ namespace NightChase
             var right = player.transform.right;
             if (navigation.valid)
             {
-                suspect = ChaseRunner.Spawn(transform, "Suspect", suspectStart, new Color(.055f, .22f, .65f), "MixamoNpc/StreetCivilian");
+                suspect = ChaseRunner.Spawn(transform, "Suspect", suspectStart, new Color(.055f, .22f, .65f), suspectModel);
                 if (suspect && suspectWaypoints.Length > 0) suspect.Face(suspectWaypoints[0]);
             }
             var partner = navigation.valid
-                ? ChaseRunner.Spawn(transform, "Partner", origin + forward * 4.5f + right * .62f, new Color(.42f, .30f, .18f), "MixamoNpc/StreetPartner")
+                ? ChaseRunner.Spawn(transform, "Partner", origin + forward * 4.5f + right * .62f, new Color(.42f, .30f, .18f), partnerModel)
                 : null;
 
             if (partner)
@@ -188,15 +190,15 @@ namespace NightChase
 
         void Update()
         {
-            if (!chaseActive || !suspect || !obstacles.AtFinish(suspect.transform.position) || !suspect.Arrived
-                || FlatDistance(player.transform.position, suspect.transform.position) > 2.8f
-                || Physics.Linecast(eyes.position, suspect.transform.position + Vector3.up, ~0,
-                    QueryTriggerInteraction.Ignore)) return;
+            if (!chaseActive || !suspect || !obstacles.AtFinish(suspect.transform.position) || !suspect.Arrived)
+                return;
 
             chaseActive = false;
-            if (obstacles) obstacles.EndTutorial();
             dialogue = null;
-            gameObject.AddComponent<ChaseFight>().Begin(player.transform, eyes, suspect);
+            if (obstacles) obstacles.EndTutorial();
+            var fight = GetComponent<ChaseFight>();
+            if (!fight) fight = gameObject.AddComponent<ChaseFight>();
+            fight.Arm(player, eyes, suspect);
         }
 
         void ReleaseControls()
