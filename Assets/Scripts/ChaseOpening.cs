@@ -10,7 +10,9 @@ namespace NightChase
         public const string ScenePath = "Assets/_Project/Scenes/Chase_Street.unity";
 
         [SerializeField] Vector3 openingPosition = new Vector3(-35.49895f, .177f, -25.52321f);
-        [SerializeField] string suspectModel = "MixamoNpc/Ch31";
+        [SerializeField] string suspectModel = "MixamoNpc/Ch08";
+        [Min(0)] public float startDelay = 2.5f;
+        [Min(0)] public float endDelay = 2.5f;
         [SerializeField] string partnerModel = "MixamoNpc/Ch33";
         [SerializeField] Vector3 suspectStart = new Vector3(-23.8f, 0, -25.85f);
         [SerializeField] Vector3[] suspectWaypoints =
@@ -135,10 +137,11 @@ namespace NightChase
                 partner.Follow(System.Array.Empty<Vector3>(), 0);
                 partner.Face(origin);
             }
-            else yield return new WaitForSeconds(.65f);
+            yield return new WaitForSeconds(startDelay);
 
             dialogue = "Сильно же тебя приложило";
-            yield return new WaitForSeconds(.9f);
+            yield return new WaitForSeconds(startDelay);
+            dialogue = null;
             if (partner) partner.Reach(eyes);
 
             var pronePosition = eyes.localPosition;
@@ -149,24 +152,23 @@ namespace NightChase
                 float rise = Mathf.SmoothStep(0f, 1f, elapsed / liftTime);
                 eyes.SetLocalPositionAndRotation(Vector3.Lerp(pronePosition, standingPosition, rise),
                     Quaternion.Slerp(proneRotation, standingRotation, rise));
-                if (elapsed >= .65f)
-                {
-                    dialogue = "Давай, что ты там мнёшься, сейчас упустим!";
-                    if (suspect) suspect.Face(origin, 170f * Time.deltaTime);
-                }
+                if (elapsed >= .65f && suspect) suspect.Face(origin, 170f * Time.deltaTime);
                 yield return null;
             }
 
-            ReleaseControls();
             if (partner) partner.Reach(null);
+            dialogue = "Давай, что ты там мнёшься, сейчас упустим!";
+            yield return new WaitForSeconds(startDelay);
             if (!navigation.valid)
             {
-                yield return new WaitForSeconds(1.2f);
+                ReleaseControls();
                 dialogue = null;
                 yield break;
             }
 
             dialogue = "Вон тот в синей кофте, давай ты за ним, а я попробую его перехватить с другой стороны!";
+            yield return new WaitForSeconds(startDelay);
+            ReleaseControls();
             if (partner) partner.Follow(partnerWaypoints, 5.1f);
             if (suspect && suspectWaypoints.Length > 0)
             {
@@ -178,7 +180,7 @@ namespace NightChase
                 suspect.Follow(suspectWaypoints, suspectRunSpeed);
                 chaseActive = true;
             }
-            yield return new WaitForSeconds(4.4f);
+            yield return new WaitForSeconds(.45f);
             dialogue = null;
 
             if (!partner) yield break;
@@ -198,7 +200,7 @@ namespace NightChase
             if (obstacles) obstacles.EndTutorial();
             var fight = GetComponent<ChaseFight>();
             if (!fight) fight = gameObject.AddComponent<ChaseFight>();
-            fight.Arm(player, eyes, suspect);
+            fight.Arm(player, eyes, suspect, endDelay);
         }
 
         void ReleaseControls()

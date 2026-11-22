@@ -15,13 +15,17 @@ namespace NightChase
         [SerializeField, Min(1)] int missesToLose = 3;
         [SerializeField, Min(.5f)] float interactionDistance = 2.8f;
         [SerializeField] TMP_FontAsset uiFont;
-        [SerializeField] Key[] keys = { Key.Q, Key.F, Key.R, Key.T, Key.G, Key.Z, Key.X, Key.C };
+        [SerializeField] Key[] keys =
+        {
+            Key.A, Key.B, Key.C, Key.D, Key.E, Key.F, Key.G, Key.H, Key.J, Key.K, Key.L, Key.M,
+            Key.N, Key.P, Key.Q, Key.R, Key.S, Key.T, Key.U, Key.V, Key.W, Key.X, Key.Y, Key.Z
+        };
 
         [SerializeField] UnityEngine.Events.UnityEvent onArrested = new();
         public event Action Arrested;
 
         const float ReactionTime = .58f;
-        enum Phase { Waiting, Fighting, Defeated, Arrested, Lost }
+        enum Phase { Waiting, Fighting, Arrested, Lost }
         Phase phase;
         Transform player, eyes;
         Quaternion eyeRest, eyeOriginal;
@@ -37,21 +41,23 @@ namespace NightChase
         TMP_Text keyLabel, status;
         Key currentKey = Key.None;
         Key[] availableKeys;
+        float endDelay;
         float deadline, reactionUntil, cameraDirection;
         int hits, misses;
         bool roundActive, restoreCapture, movementLocked;
 
-        internal void Arm(FirstPersonController controller, Transform cameraEyes, ChaseRunner opponent)
+        internal void Arm(FirstPersonController controller, Transform cameraEyes, ChaseRunner opponent, float partnerDelay)
         {
             if (suspect) return;
             movement = controller;
             player = controller.transform;
             eyes = cameraEyes;
             suspect = opponent;
+            endDelay = Mathf.Max(0, partnerDelay);
             opponentAnimator = suspect.Anim;
             opponentVisual = suspect.GetComponentInChildren<MixamoNpcVisual>();
             playerAnimator = player.GetComponentInChildren<Animator>();
-            availableKeys = Array.FindAll(keys ?? Array.Empty<Key>(), IsQteInput);
+            availableKeys = Array.FindAll(keys ?? Array.Empty<Key>(), key => key >= Key.A && key <= Key.Z && key != Key.I && key != Key.O);
             BuildUi();
         }
 
@@ -59,16 +65,13 @@ namespace NightChase
         {
             if (!suspect) return;
             var keyboard = Keyboard.current;
-            if (phase == Phase.Waiting || phase == Phase.Defeated)
+            if (phase == Phase.Waiting)
             {
                 bool near = CanInteract();
-                status.text = phase == Phase.Waiting ? "E — начать драку" : "E — надеть наручники";
+                status.text = "E — начать драку";
                 status.gameObject.SetActive(near);
                 if (!near || keyboard == null || !keyboard.eKey.wasPressedThisFrame) return;
-                if (phase == Phase.Defeated)
-                    StartCoroutine(Arrest());
-                else
-                    Begin();
+                Begin();
                 return;
             }
 
@@ -146,8 +149,7 @@ namespace NightChase
             int index = availableKeys.Length > 0 ? UnityEngine.Random.Range(0, availableKeys.Length) : 0;
             if (availableKeys.Length > 1 && availableKeys[index] == previous) index = (index + 1) % availableKeys.Length;
             currentKey = availableKeys.Length > 0 ? availableKeys[index] : Key.F;
-            string display = Keyboard.current?[currentKey]?.displayName;
-            keyLabel.text = string.IsNullOrEmpty(display) ? currentKey.ToString() : display.ToUpperInvariant();
+            keyLabel.text = currentKey.ToString();
             roundActive = true;
             deadline = Time.time + roundTime;
             ring.fillAmount = 1f;
@@ -207,16 +209,20 @@ namespace NightChase
             yield return new WaitForSeconds(ReactionTime);
             Trigger(opponentAnimator, "Lose");
             if (opponentVisual) opponentVisual.Fall();
-            RestoreControl();
-            phase = Phase.Defeated;
-        }
+            yield return new WaitForSeconds(.55f);
 
-        IEnumerator Arrest()
-        {
-            phase = Phase.Arrested;
-            status.text = "Наручники надеты";
-            yield return new WaitForSeconds(1.3f);
-            status.gameObject.SetActive(false);
+            var sequence = gameObject.AddComponent<ChaseArrestSequence>();
+            yield return sequence.Run(movement, eyes, suspect, endDelay, message =>
+            {
+                status.fontSize = 29;
+                status.rectTransform.sizeDelta = new Vector2(980, 132);
+                status.text = message;
+                status.gameObject.SetActive(!string.IsNullOrEmpty(message));
+            });
+
+            RestoreControl();
+            yield return new WaitForSeconds(endDelay);
+            InventoryManager.Receive(movement);
             onArrested.Invoke();
             Arrested?.Invoke();
         }

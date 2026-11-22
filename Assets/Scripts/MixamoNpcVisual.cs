@@ -13,6 +13,7 @@ namespace NightChase
         PlayableGraph graph;
         AnimationMixerPlayable mixer;
         int current = -1;
+        readonly float[] weights = new float[4];
         Transform modelRoot;
         Quaternion modelRestRotation;
         float attackUntil, reactionUntil, fallStarted = -1;
@@ -27,7 +28,7 @@ namespace NightChase
 
         public Animator Animator { get; private set; }
 
-        public static MixamoNpcVisual Create(Transform parent, string path, Color shirt, float phase, bool normalize = true)
+        public static MixamoNpcVisual Create(Transform parent, string path, Color shirt, float phase, bool normalize = true, bool suspect = false)
         {
             var prefab = Resources.Load<GameObject>(path);
             if (!prefab)
@@ -42,11 +43,11 @@ namespace NightChase
             pivot.SetParent(mount.transform, false);
             var model = Instantiate(prefab, pivot, false);
             var visual = mount.AddComponent<MixamoNpcVisual>();
-            visual.Configure(model, path, shirt, phase, normalize);
+            visual.Configure(model, path, shirt, phase, normalize, suspect);
             return visual;
         }
 
-        void Configure(GameObject model, string path, Color shirt, float phase, bool normalize = true)
+        void Configure(GameObject model, string path, Color shirt, float phase, bool normalize, bool suspect)
         {
             modelRoot = model.transform.parent;
             modelRestRotation = modelRoot.localRotation;
@@ -61,7 +62,7 @@ namespace NightChase
                     transform.localScale = Vector3.one * scale;
                     transform.position += Vector3.up * ((transform.position.y - bounds.min.y) * scale);
                 }
-                ApplyMaterials(renderers, path, shirt);
+                ApplyMaterials(renderers, path, shirt, suspect);
             }
 
             Animator = model.GetComponentInChildren<Animator>();
@@ -79,7 +80,8 @@ namespace NightChase
             graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
             mixer = AnimationMixerPlayable.Create(graph, motions.Length);
             AnimationPlayableOutput.Create(graph, "Mixamo", Animator).SetSourcePlayable(mixer);
-            AddMotion(0, "Idle", phase);
+            AddMotion(0, "Stand", phase);
+            if (!motions[0].IsValid()) AddMotion(0, "Idle", phase);
             AddMotion(1, "Walk", phase);
             AddMotion(2, "Run", phase);
             AddMotion(3, "Punch", 0);
@@ -87,7 +89,7 @@ namespace NightChase
             Pose(0f, 0f);
         }
 
-        void ApplyMaterials(SkinnedMeshRenderer[] renderers, string path, Color shirt)
+        void ApplyMaterials(SkinnedMeshRenderer[] renderers, string path, Color shirt, bool suspect)
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (!shader) return;
@@ -104,8 +106,9 @@ namespace NightChase
                     foreach (var rule in profile.slots)
                     {
                         if (rule.mesh != renderer.name || rule.slot >= slots.Length) continue;
-                        bool blue = modelName == "Ch31" && renderer.name.Contains("Sweater");
-                        string texture = blue ? "Ch31SweaterGray" : rule.texture;
+                        bool hoodie = modelName == "Ch08" && renderer.name.Contains("Hoodie");
+                        bool blue = suspect && (hoodie || (modelName == "Ch31" && renderer.name.Contains("Sweater")));
+                        string texture = blue ? (hoodie ? "Ch08HoodieGray" : "Ch31SweaterGray") : rule.texture;
                         string key = texture + "|" + rule.alpha + "|" + blue;
                         if (!cache.TryGetValue(key, out var material))
                         {
@@ -180,15 +183,19 @@ namespace NightChase
                 selected = motions[1].IsValid() ? 1 : motions[0].IsValid() ? 0 : 2;
             if (!motions[selected].IsValid()) return;
 
-            if (current != selected)
+            bool immediate = current < 0 || selected == 3;
+            current = selected;
+            float blend = immediate ? 1 : 1 - Mathf.Exp(-delta * 14f);
+            for (int i = 0; i < motions.Length; i++)
             {
-                for (int i = 0; i < motions.Length; i++) mixer.SetInputWeight(i, i == selected ? 1 : 0);
-                current = selected;
+                if (!motions[i].IsValid()) continue;
+                weights[i] = Mathf.Lerp(weights[i], i == selected ? 1 : 0, blend);
+                mixer.SetInputWeight(i, weights[i]);
+                if (weights[i] < .001f) continue;
+                var motion = motions[i];
+                float rate = i == 0 || i == 3 ? 1 : Mathf.Clamp(speed / (i == 1 ? 1.4f : 4.6f), .65f, 1.55f);
+                motion.SetTime(Mathf.Repeat((float)motion.GetTime() + delta * rate, motion.GetAnimationClip().length));
             }
-
-            var motion = motions[selected];
-            float rate = selected == 0 || selected == 3 ? 1 : Mathf.Clamp(speed / (selected == 1 ? 1.4f : 4.6f), .65f, 1.55f);
-            motion.SetTime(Mathf.Repeat((float)motion.GetTime() + delta * rate, motion.GetAnimationClip().length));
             graph.Evaluate(0);
         }
 
@@ -201,6 +208,7 @@ namespace NightChase
         }
 
         public void Fall() => fallStarted = Time.time;
+        public void StandForArrest() => fallStarted = -1;
 
         public Transform Bone(HumanBodyBones key, string suffix)
         {

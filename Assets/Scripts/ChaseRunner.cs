@@ -161,9 +161,9 @@ namespace NightChase
 
         void LoadModel(string modelPath, Color shirt)
         {
-            bool suspect = modelPath.EndsWith("/StreetCivilian", System.StringComparison.Ordinal);
+            bool suspect = name == "Suspect";
             visual = MixamoNpcVisual.Create(transform, modelPath,
-                suspect ? new Color(.14f, .42f, .98f) : shirt, 0f);
+                suspect ? new Color(.14f, .42f, .98f) : shirt, 0f, suspect: suspect);
             if (!visual) return;
             upperArm = visual.Bone(HumanBodyBones.RightUpperArm, "RightArm");
             forearm = visual.Bone(HumanBodyBones.RightLowerArm, "RightForeArm");
