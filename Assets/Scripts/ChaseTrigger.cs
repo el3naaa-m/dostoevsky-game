@@ -31,6 +31,8 @@ namespace NightChase
         public bool Fired => fired;
         public bool Contains(Vector3 position) => volume.bounds.Contains(position);
 
+        void OnTriggerStay(Collider other) => OnTriggerEnter(other);
+
         void OnTriggerEnter(Collider other)
         {
             if (subject && other.transform.IsChildOf(subject)) Check(other.bounds.center);
@@ -38,9 +40,9 @@ namespace NightChase
 
         public void Check(Vector3 position)
         {
-            if (fired || entered == null || !Contains(position)) return;
+            if (fired || !Contains(position)) return;
             fired = true;
-            entered();
+            entered?.Invoke();
         }
     }
 }

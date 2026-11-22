@@ -47,7 +47,7 @@ namespace NightChase
                 new Vector3(CorridorX, 1.15f, GateZ), new Vector3(2.70f, 2.8f, 3.15f));
             gameObject.AddComponent<ChasePlayerClimb>().Initialize(controller, eyes, gateZone, GateZ);
             finishZone = ChaseTrigger.Create(transform, "Chase finish trigger", finish + Vector3.up,
-                new Vector3(.96f, 3f, .96f), suspect.transform, suspect.EndPacing);
+                new Vector3(.96f, 3f, .96f), suspect.transform);
             var marker = new GameObject("Suspect finish sensor");
             marker.transform.SetParent(suspect.transform, false);
             marker.transform.localPosition = Vector3.up * .80f;
@@ -119,14 +119,6 @@ namespace NightChase
         {
             landing = new Vector3(position.x, position.y, z - step);
             return position.z > z && position.z - z <= step + .24f && target.z < z - step;
-        }
-
-        public bool CrossesTraversal(Vector3 from, Vector3 to)
-        {
-            if (Mathf.Min(from.x, to.x) < 36f || to.z >= from.z) return false;
-            foreach (float z in Hurdles)
-                if (from.z >= z - .85f && to.z <= z + 1.10f) return true;
-            return from.z >= GateZ - 1.15f && to.z <= GateZ + 1.35f;
         }
 
         void OnGUI()

@@ -20,14 +20,13 @@ namespace NightChase
         Transform upperArm, forearm;
         Transform reachTarget;
         Transform visual;
-        ChasePace pace;
         bool traversing;
-        float traversalPose, followSpeed;
+        float traversalPose;
+        Vector3 navTarget;
         ChaseObstacleCourse obstacles;
 
         public bool Moving { get; private set; }
         public bool Arrived { get; private set; }
-        public float LeadOverPlayer => pace?.Gap ?? 0;
 
         public static ChaseRunner Spawn(Transform parent, string name, Vector3 location, Color shirt)
         {
@@ -58,7 +57,7 @@ namespace NightChase
             nextPoint = 0;
             Arrived = false;
             route = points;
-            agent.speed = followSpeed = speed;
+            agent.speed = speed;
             Advance();
         }
 
@@ -72,36 +71,34 @@ namespace NightChase
         public void Reach(Transform target) => reachTarget = target;
         public void SetObstacles(ChaseObstacleCourse course) => obstacles = course;
 
-        public void SetPacing(ChasePace value) => pace = value;
-
-        public void EndPacing()
-        {
-            pace = null;
-            if (agent.enabled) agent.speed = followSpeed;
-        }
-
         void Advance()
         {
-            Moving = false;
+            Moving = nextPoint < route.Length;
             if (!agent.isOnNavMesh) return;
-
-            if (nextPoint < route.Length)
+            if (!Moving)
             {
-                var point = route[nextPoint++];
-                if (NavMesh.SamplePosition(point, out var hit, 1.25f, agent.areaMask)
-                    && agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete)
-                {
-                    agent.isStopped = false;
-                    destination = hit.position;
-                    agent.autoBraking = nextPoint >= route.Length;
-                    retryPathAt = Time.time + .5f;
-                    Moving = agent.SetDestination(destination);
-                    if (Moving) return;
-                }
-                Debug.LogWarning($"Нет полного пути для {name} к точке {point}.", this);
+                Arrived = route.Length > 0;
+                agent.ResetPath();
+                agent.isStopped = true;
+                return;
             }
-            else Arrived = route.Length > 0;
 
+            destination = navTarget = route[nextPoint++];
+            agent.autoBraking = nextPoint >= route.Length;
+            TryRoute();
+        }
+
+        void TryRoute()
+        {
+            retryPathAt = Time.time + .25f;
+            if (NavMesh.SamplePosition(destination, out var hit, .75f, agent.areaMask)
+                && agent.CalculatePath(hit.position, path) && path.status == NavMeshPathStatus.PathComplete
+                && agent.SetPath(path))
+            {
+                navTarget = hit.position;
+                agent.isStopped = false;
+                return;
+            }
             agent.ResetPath();
             agent.isStopped = true;
         }
@@ -110,22 +107,7 @@ namespace NightChase
         {
             if (!Moving || traversing || !agent.isOnNavMesh || agent.pathPending) return;
 
-            if (obstacles && obstacles.TryTraverse(transform.position, destination, out var landing,
-                    out float height, out float duration) &&
-                NavMesh.SamplePosition(landing, out var hit, .45f, agent.areaMask))
-            {
-                StartCoroutine(Traverse(hit.position, height, duration));
-                return;
-            }
-
-            if (pace != null && nextPoint > 0)
-            {
-                agent.speed = pace.Speed(transform.position, nextPoint, out float correctedProgress);
-                if (pace.TryGetCorrection(correctedProgress, nextPoint, obstacles,
-                        transform.position, out var correction, out int segment))
-                    KeepAhead(correction, segment);
-            }
-            var remaining = destination - transform.position;
+            var remaining = navTarget - transform.position;
             remaining.y = 0;
             if (remaining.sqrMagnitude <= .32f * .32f)
             {
@@ -133,43 +115,25 @@ namespace NightChase
                 return;
             }
 
-            if (Time.time < retryPathAt) return;
-            if (!agent.hasPath || agent.isPathStale || agent.pathStatus != NavMeshPathStatus.PathComplete)
+            if ((!agent.hasPath || agent.isPathStale || agent.pathStatus != NavMeshPathStatus.PathComplete)
+                && Time.time >= retryPathAt)
+                TryRoute();
+            if (!agent.hasPath) return;
+
+            Vector3 direction = agent.steeringTarget - transform.position;
+            direction.y = 0;
+            bool blocked = StreetCar.Blocks(transform.position, direction, agent.speed, agent.radius);
+            if (blocked)
             {
-                retryPathAt = Time.time + .5f;
-                agent.SetDestination(destination);
+                agent.isStopped = true;
+                return;
             }
-        }
-
-        void KeepAhead(Vector3 correction, int segment)
-        {
-            var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
-            if (!NavMesh.SamplePosition(correction, out var hit, .45f, filter) ||
-                !IsClearCorrection(hit.position, filter) ||
-                !NavMesh.SamplePosition(route[segment - 1], out var waypoint, 1.25f, filter) ||
-                !agent.Warp(hit.position)) return;
-
-            nextPoint = segment;
-            destination = waypoint.position;
-            agent.autoBraking = nextPoint >= route.Length;
             agent.isStopped = false;
-            agent.SetDestination(destination);
-        }
 
-        bool IsClearCorrection(Vector3 point, NavMeshQueryFilter filter)
-        {
-            if (!NavMesh.Raycast(agent.nextPosition, point, out _, filter)) return true;
-            if (!agent.CalculatePath(point, path) || path.status != NavMeshPathStatus.PathComplete)
-                return false;
-
-            float length = 0;
-            Vector3 previous = agent.nextPosition;
-            foreach (var corner in path.corners)
-            {
-                length += Vector3.Distance(previous, corner);
-                previous = corner;
-            }
-            return length <= Vector3.Distance(agent.nextPosition, point) * 1.42f + .45f;
+            if (obstacles && obstacles.TryTraverse(transform.position, destination, out var landing,
+                    out float height, out float duration) &&
+                NavMesh.SamplePosition(landing, out var hit, .45f, agent.areaMask))
+                StartCoroutine(Traverse(hit.position, height, duration));
         }
 
         IEnumerator Traverse(Vector3 landing, float height, float duration)
@@ -190,11 +154,7 @@ namespace NightChase
             traversalPose = 0;
             traversing = false;
             agent.enabled = true;
-            if (agent.isOnNavMesh)
-            {
-                agent.isStopped = false;
-                agent.SetDestination(destination);
-            }
+            if (agent.isOnNavMesh) TryRoute();
         }
 
         void LoadModel(Color shirt)

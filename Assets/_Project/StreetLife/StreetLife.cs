@@ -10,29 +10,42 @@ namespace NightChase
     {
         const string ScenePath = "Assets/_Project/Scenes/Chase_Street.unity";
         const float WestLane = -19.7f;
-        const float EastLane = 20.8f;
-        const float SouthLane = -22.8f;
+        const float EastLane = 20.30f;
+        const float SouthLane = -21.35f;
         const float NorthEnd = 20.5f;
         const float TurnRadius = 4.2f;
         const float LegLength = NorthEnd - SouthLane - TurnRadius;
         const float BendLength = Mathf.PI * TurnRadius / 2f;
         const float StraightLength = EastLane - WestLane - 2f * TurnRadius;
         const float RouteLength = 2f * (LegLength + BendLength) + StraightLength;
-        const float CarSpeed = 5.5f;
         const float ReentryDelay = 2f;
-        const float CycleLength = RouteLength + ReentryDelay * CarSpeed;
+
+        [Header("Street traffic")]
+        [SerializeField, Min(1)] float sedanSpeed = 5.5f;
+        [SerializeField, Min(1)] float hatchbackSpeed = 5.1f;
+        [SerializeField, Range(1.15f, 1.55f)] float laneOffset = 1.33f;
+        [Header("Oncoming chase car")]
+        [SerializeField, Min(1)] float taxiSpeed = 7.4f;
+        [SerializeField, Min(0)] float taxiDelay = .18f;
+        [SerializeField] Vector3 taxiTriggerCenter = new Vector3(-25.6f, 1, -24.1f);
+        [SerializeField] Vector3 taxiTriggerSize = new Vector3(5.6f, 3, 6.2f);
+        [SerializeField, Range(-13f, 10f)] float taxiEntryX = -10f;
 
         const string ModelPath = "StreetLife/";
         readonly Car[] cars = new Car[3];
         readonly Dictionary<Material, Material> convertedMaterials = new();
         readonly Walker[] walkers = new Walker[6];
         float elapsed;
+        float taxiAt = float.PositiveInfinity;
+        bool taxiArmed;
 
         sealed class Car
         {
             public Rigidbody Body;
             public readonly List<Transform> Wheels = new();
-            public float WheelRadius;
+            public StreetCar Contact;
+            public float WheelRadius, Speed, WheelSpeed, Distance, ReenterAt;
+            public bool Reverse, Tactical, Finished;
         }
 
         sealed class Walker
@@ -55,6 +68,8 @@ namespace NightChase
         static void AddToStreet(Scene scene, LoadSceneMode mode)
         {
             if (scene.path != ScenePath) return;
+            foreach (var existing in scene.GetRootGameObjects())
+                if (existing.GetComponentInChildren<StreetLife>(true)) return;
             var root = new GameObject("Street Life");
             SceneManager.MoveGameObjectToScene(root, scene);
             root.AddComponent<StreetLife>();
@@ -62,9 +77,11 @@ namespace NightChase
 
         void Awake()
         {
-            cars[0] = CreateCar("sedan", 1.88f, 1.45f, 4.76f, .33f);
-            cars[1] = CreateCar("taxi", 1.88f, 1.65f, 4.76f, .33f);
-            cars[2] = CreateCar("hatchback", 1.84f, 1.48f, 4.06f, .32f);
+            cars[0] = CreateCar("sedan", 1.88f, 1.45f, 4.76f, .33f, sedanSpeed, false, 18f);
+            cars[1] = CreateCar("hatchback", 1.84f, 1.48f, 4.06f, .32f, hatchbackSpeed, true, 30f);
+            float taxiStart = RouteLength - (LegLength + BendLength + taxiEntryX - (WestLane + TurnRadius));
+            cars[2] = CreateCar("taxi", 1.88f, 1.65f, 4.76f, .33f, taxiSpeed, true, taxiStart);
+            cars[2].Tactical = true;
 
             walkers[0] = CreateWalker("Man", -28, -12, -27.6f, 1.29f, 0, new Color(.34f, .16f, .24f));
             walkers[1] = CreateWalker("Woman", 7, -7, -27.5f, 1.12f, 3, new Color(.34f, .30f, .15f));
@@ -84,23 +101,8 @@ namespace NightChase
 
         void UpdateTraffic(bool initial)
         {
-            for (int i = 0; i < cars.Length; i++)
-            {
-                var car = cars[i].Body;
-                float distance = Mathf.Repeat(elapsed * CarSpeed + CycleLength * (i + .18f) / cars.Length,
-                    CycleLength);
-                if (distance >= RouteLength)
-                {
-                    car.gameObject.SetActive(false);
-                    continue;
-                }
-
-                SampleRoad(distance, out Vector3 position, out Vector3 forward);
-                bool entering = !car.gameObject.activeSelf;
-                Place(car, position, Quaternion.LookRotation(forward), initial || entering);
-                if (entering) car.gameObject.SetActive(true);
-            }
-
+            foreach (var car in cars)
+                UpdateCar(car, initial);
             foreach (var walker in walkers)
             {
                 float length = Vector3.Distance(walker.Start, walker.End);
@@ -115,12 +117,74 @@ namespace NightChase
             }
         }
 
+        public void ArmChaseTraffic(Transform player)
+        {
+            if (taxiArmed) return;
+            taxiArmed = true;
+            ChaseTrigger.Create(transform, "Oncoming taxi trigger", taxiTriggerCenter, taxiTriggerSize,
+                player, () => taxiAt = elapsed + taxiDelay);
+        }
+
+        void UpdateCar(Car car, bool initial)
+        {
+            if (car.Finished) return;
+            bool entering = !car.Body.gameObject.activeSelf;
+            if (entering)
+            {
+                float availableAt = car.Tactical ? taxiAt : car.ReenterAt;
+                if (elapsed < availableAt || !HasEntrySpace(car)) return;
+            }
+
+            float step = 0;
+            if (!initial && !entering && (!car.Tactical || elapsed >= taxiAt))
+            {
+                step = car.Speed * Time.fixedDeltaTime;
+                foreach (var other in cars)
+                {
+                    if (other == car || other.Reverse != car.Reverse || !other.Body.gameObject.activeSelf
+                        || other.Distance <= car.Distance) continue;
+                    step = Mathf.Min(step, Mathf.Max(0, other.Distance - car.Distance - 7.4f));
+                }
+            }
+
+            car.Distance += step;
+            if (car.Distance >= RouteLength)
+            {
+                car.Body.gameObject.SetActive(false);
+                car.Finished = car.Tactical;
+                car.Distance = 0;
+                car.ReenterAt = elapsed + ReentryDelay;
+                return;
+            }
+
+            float distance = car.Reverse ? RouteLength - car.Distance : car.Distance;
+            SampleRoad(distance, out Vector3 position, out Vector3 forward);
+            if (car.Reverse) forward = -forward;
+            position += Vector3.Cross(Vector3.up, forward) * laneOffset;
+
+            Vector3 velocity = initial || entering ? Vector3.zero
+                : (position - car.Body.position) / Time.fixedDeltaTime;
+            Place(car.Body, position, Quaternion.LookRotation(forward), initial || entering);
+            if (entering) car.Body.gameObject.SetActive(true);
+            car.Contact.SetVelocity(velocity);
+            car.WheelSpeed = velocity.magnitude;
+        }
+
+        bool HasEntrySpace(Car car)
+        {
+            foreach (var other in cars)
+                if (other != car && other.Reverse == car.Reverse && other.Body.gameObject.activeSelf
+                    && Mathf.Abs(other.Distance - car.Distance) < 8f)
+                    return false;
+            return true;
+        }
+
         void LateUpdate()
         {
             foreach (var car in cars)
             {
                 if (!car.Body.gameObject.activeSelf) continue;
-                float spin = CarSpeed * Time.deltaTime / car.WheelRadius * Mathf.Rad2Deg;
+                float spin = car.WheelSpeed * Time.deltaTime / car.WheelRadius * Mathf.Rad2Deg;
                 foreach (var wheel in car.Wheels)
                     wheel.Rotate(Vector3.right, spin, Space.Self);
             }
@@ -200,14 +264,22 @@ namespace NightChase
             body.MoveRotation(rotation);
         }
 
-        Car CreateCar(string modelName, float width, float height, float length, float wheelRadius)
+        Car CreateCar(string modelName, float width, float height, float length, float wheelRadius, float speed, bool reverse, float distance)
         {
             Rigidbody body = CreateBody(modelName);
             var collision = body.gameObject.AddComponent<BoxCollider>();
             collision.center = Vector3.up * (height * .5f);
             collision.size = new Vector3(width, height, length);
 
-            var car = new Car { Body = body, WheelRadius = wheelRadius };
+            var car = new Car
+            {
+                Body = body,
+                Contact = body.gameObject.AddComponent<StreetCar>(),
+                WheelRadius = wheelRadius,
+                Speed = speed,
+                Reverse = reverse,
+                Distance = distance
+            };
             var model = CreateModel(modelName, body.transform);
             if (model)
             {

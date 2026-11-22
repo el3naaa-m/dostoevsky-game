@@ -13,13 +13,13 @@ namespace NightChase
         [SerializeField] Vector3 suspectStart = new Vector3(-23.8f, 0, -25.85f);
         [SerializeField] Vector3[] suspectWaypoints =
         {
-            new Vector3(-21.1f, 0, -18.1f),
-            new Vector3(13f, 0, -18.1f),
-            new Vector3(18.5f, 0, -18.25f),
-            new Vector3(20f, 0, -15.4f),
-            new Vector3(20f, 0, -2f),
-            new Vector3(20f, 0, 17.5f),
-            new Vector3(20.5f, 0, 24.4f),
+            new Vector3(-16.3f, 0, -17.45f),
+            new Vector3(13f, 0, -17.45f),
+            new Vector3(16f, 0, -17.45f),
+            new Vector3(24.2f, .142f, -15.1f),
+            new Vector3(24.4f, .142f, -2f),
+            new Vector3(24.4f, .142f, 17.5f),
+            new Vector3(24.4f, 0, 24.4f),
             new Vector3(31.7f, 0, 24.4f),
             new Vector3(37.35f, 0, 23.9f),
             new Vector3(37.35f, 0, 18f),
@@ -38,11 +38,7 @@ namespace NightChase
             new Vector3(-19.5f, 0, 8f)
         };
         [SerializeField, Min(1)] float warningDistance = 22f;
-        [Header("Chase pacing")]
-        [SerializeField, Min(.5f)] float minDistance = 2.35f;
-        [SerializeField, Min(1)] float maxSpeed = 8.8f;
-        [SerializeField, Min(1)] float catchUpSpeed = 7.1f;
-        [SerializeField, Min(0)] float slowdownWhenFar = .85f;
+        [SerializeField, Min(1)] float suspectRunSpeed = 6.45f;
 
         FirstPersonController player;
         StreetOwnership street;
@@ -95,6 +91,7 @@ namespace NightChase
             standingPosition = eyes.localPosition;
             standingRotation = eyes.localRotation;
             var controller = player.GetComponent<CharacterController>();
+            if (!player.GetComponent<ChaseTrafficImpact>()) player.gameObject.AddComponent<ChaseTrafficImpact>();
             bool colliderEnabled = controller.enabled;
             controller.enabled = false;
             player.transform.position = openingPosition;
@@ -174,10 +171,9 @@ namespace NightChase
                 obstacles = gameObject.AddComponent<ChaseObstacleCourse>();
                 obstacles.Build(street, player, eyes, suspect, suspectWaypoints[suspectWaypoints.Length - 1]);
                 suspect.SetObstacles(obstacles);
-                const float runSpeed = 4.85f;
-                suspect.Follow(suspectWaypoints, runSpeed);
-                suspect.SetPacing(new ChasePace(player.transform, suspect.transform.position, suspectWaypoints,
-                    runSpeed, minDistance, maxSpeed, catchUpSpeed, slowdownWhenFar, warningDistance));
+                var traffic = FindAnyObjectByType<StreetLife>();
+                if (traffic) traffic.ArmChaseTraffic(player.transform);
+                suspect.Follow(suspectWaypoints, suspectRunSpeed);
                 chaseActive = true;
             }
             yield return new WaitForSeconds(4.4f);
@@ -220,7 +216,7 @@ namespace NightChase
         void OnGUI()
         {
             bool fallingBehind = chaseActive && suspect &&
-                suspect.LeadOverPlayer > warningDistance;
+                FlatDistance(player.transform.position, suspect.transform.position) > warningDistance;
             if (string.IsNullOrEmpty(dialogue) && !fallingBehind) return;
             label ??= new GUIStyle(GUI.skin.label)
             {
