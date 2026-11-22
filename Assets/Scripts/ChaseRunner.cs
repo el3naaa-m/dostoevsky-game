@@ -28,7 +28,7 @@ namespace NightChase
         public bool Moving { get; private set; }
         public bool Arrived { get; private set; }
 
-        public static ChaseRunner Spawn(Transform parent, string name, Vector3 location, Color shirt)
+        public static ChaseRunner Spawn(Transform parent, string name, Vector3 location, Color shirt, string modelPath = null)
         {
             if (!NavMesh.SamplePosition(location, out var hit, 1.5f, NavMesh.AllAreas))
             {
@@ -41,13 +41,19 @@ namespace NightChase
             actor.transform.position = hit.position;
             var runner = actor.AddComponent<ChaseRunner>();
             runner.agent = actor.AddComponent<NavMeshAgent>();
-            runner.agent.radius = .30f;
+            runner.agent.radius = 0.40f;
             runner.agent.height = 1.75f;
             runner.agent.acceleration = 16f;
             runner.agent.angularSpeed = 540f;
             runner.agent.stoppingDistance = .13f;
             runner.path = new NavMeshPath();
-            runner.LoadModel(shirt);
+
+            var capsule = actor.AddComponent<CapsuleCollider>();
+            capsule.height = 1.8f;
+            capsule.radius = 0.35f;
+            capsule.center = new Vector3(0, 0.9f, 0);
+
+            runner.LoadModel(modelPath ?? "StreetLife/Man", shirt);
             return runner;
         }
 
@@ -157,11 +163,14 @@ namespace NightChase
             if (agent.isOnNavMesh) TryRoute();
         }
 
-        void LoadModel(Color shirt)
+        void LoadModel(string modelPath, Color shirt)
         {
-            const string modelPath = "StreetLife/Man";
             var prefab = Resources.Load<GameObject>(modelPath);
-            if (!prefab) return;
+            if (!prefab)
+            {
+                Debug.LogWarning($"NPC модель не найдена по Resources пути: {modelPath}");
+                return;
+            }
 
             var model = Instantiate(prefab, transform, false);
             visual = model.transform;
@@ -169,16 +178,37 @@ namespace NightChase
             if (skin && skin.bounds.size.y > .01f)
             {
                 Bounds bounds = skin.bounds;
-                float scale = 1.73f / bounds.size.y;
+                float scale = 1.75f / bounds.size.y;
                 visual.localScale *= scale;
                 visual.localPosition += Vector3.up * ((transform.position.y - bounds.min.y) * scale);
 
-                var properties = new MaterialPropertyBlock();
-                properties.SetColor("_Color", shirt);
-                properties.SetColor("_BaseColor", shirt);
+                // Материалы под URP-пайплайн проекта. Кофта преступника — синяя.
+                bool isCriminal = shirt.r < 0.2f && shirt.g < 0.4f && shirt.b > 0.5f;
                 var materials = skin.sharedMaterials;
+                bool shirtTinted = false;
                 for (int i = 0; i < materials.Length; i++)
-                    if (materials[i] && materials[i].name == "Shirt") skin.SetPropertyBlock(properties, i);
+                {
+                    if (materials[i] && materials[i].name == "Shirt")
+                    {
+                        var properties = new MaterialPropertyBlock();
+                        properties.SetColor("_Color", shirt);
+                        properties.SetColor("_BaseColor", shirt);
+                        skin.SetPropertyBlock(properties, i);
+                        shirtTinted = true;
+                    }
+                }
+                if (!shirtTinted)
+                {
+                    var fallback = isCriminal
+                        ? Resources.Load<Material>("MixamoNpc/Materials/NPC_Criminal")
+                        : Resources.Load<Material>("MixamoNpc/Materials/NPC_Civilian");
+                    if (fallback)
+                    {
+                        for (int i = 0; i < materials.Length; i++)
+                            if (materials[i]) materials[i] = fallback;
+                        skin.sharedMaterials = materials;
+                    }
+                }
 
                 foreach (var bone in skin.bones)
                 {
@@ -191,12 +221,24 @@ namespace NightChase
             if (!animator) animator = model.AddComponent<Animator>();
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-            foreach (var clip in Resources.LoadAll<AnimationClip>(modelPath))
+            string walkPath = modelPath.StartsWith("MixamoNpc/")
+                ? "MixamoNpc/Motion/Walk"
+                : modelPath;
+            AnimationClip walkClip = null;
+            foreach (var clip in Resources.LoadAll<AnimationClip>(walkPath))
             {
-                if (clip.name != "Walk" || clip.legacy || clip.length <= 0) continue;
-                walk = AnimationPlayableUtilities.PlayClip(animator, clip, out graph);
+                if (clip.legacy || clip.length <= 0) continue;
+                if (clip.name.IndexOf("walk", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    walkClip = clip;
+                    break;
+                }
+                if (walkClip == null) walkClip = clip;
+            }
+            if (walkClip)
+            {
+                walk = AnimationPlayableUtilities.PlayClip(animator, walkClip, out graph);
                 graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
-                break;
             }
         }
 

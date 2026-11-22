@@ -118,11 +118,11 @@ namespace NightChase
             var right = player.transform.right;
             if (navigation.valid)
             {
-                suspect = ChaseRunner.Spawn(transform, "Suspect", suspectStart, new Color(.055f, .22f, .65f));
+                suspect = ChaseRunner.Spawn(transform, "Suspect", suspectStart, new Color(.055f, .22f, .65f), "MixamoNpc/StreetCivilian");
                 if (suspect && suspectWaypoints.Length > 0) suspect.Face(suspectWaypoints[0]);
             }
             var partner = navigation.valid
-                ? ChaseRunner.Spawn(transform, "Partner", origin + forward * 4.5f + right * .62f, new Color(.42f, .30f, .18f))
+                ? ChaseRunner.Spawn(transform, "Partner", origin + forward * 4.5f + right * .62f, new Color(.42f, .30f, .18f), "MixamoNpc/StreetPartner")
                 : null;
 
             if (partner)
