@@ -1,0 +1,14 @@
+Street Life models (CC0 1.0 Universal)
+
+sedan.fbx, taxi.fbx, hatchback.fbx
+Low-poly Vehicles Kit by Toolbench
+https://toolbenchdev.com/gamedev/cc0-game-assets/low-poly-vehicles-kit/
+
+Man.fbx, Woman.fbx
+Man and Woman Casual by Quaternius, distributed by Poly Pizza
+https://poly.pizza/m/HMnuH5geEG
+https://poly.pizza/m/jpKRgGDxhk
+Converted to FBX with the walking animation.
+
+CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
