@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -14,12 +15,13 @@ namespace NightChase
         public static InventoryManager Instance { get; private set; }
 
         FirstPersonController movement;
+        Action afterReview;
         GameObject panel;
         Text title, hint;
         Font font;
         bool open, restoreCapture, movementWasEnabled, ready;
 
-        internal static void Receive(FirstPersonController controller)
+        internal static void Receive(FirstPersonController controller, Action afterReview)
         {
             if (Instance && Instance.ready) return;
             var root = new GameObject("Chase Inventory");
@@ -27,6 +29,7 @@ namespace NightChase
             var inventory = root.AddComponent<InventoryManager>();
             Instance = inventory;
             inventory.movement = controller;
+            inventory.afterReview = afterReview;
             inventory.Build();
             inventory.ready = true;
             inventory.Invoke(nameof(HideHint), 3f);
@@ -42,7 +45,7 @@ namespace NightChase
         {
             if (open)
             {
-                Close();
+                Close(completedReview: true);
                 return;
             }
 
@@ -55,11 +58,20 @@ namespace NightChase
             panel.SetActive(true);
         }
 
-        void Close()
+        void Close(bool completedReview = false)
         {
             if (!open) return;
             open = false;
             if (panel) panel.SetActive(false);
+            if (completedReview && afterReview != null)
+            {
+                var callback = afterReview;
+                afterReview = null;
+                ready = false;
+                HideHint();
+                callback();
+                return;
+            }
             if (!movement || !movementWasEnabled) return;
             movement.enabled = true;
             movement.SendMessage("SetCapture", restoreCapture && Application.isFocused,
@@ -168,3 +180,4 @@ namespace NightChase
         }
     }
 }
+

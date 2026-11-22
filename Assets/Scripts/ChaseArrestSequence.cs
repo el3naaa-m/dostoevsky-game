@@ -12,6 +12,7 @@ namespace NightChase
         Transform suspectRoot;
         float restraint;
         bool holding;
+        public ChaseRunner Partner { get; private set; }
 
         public IEnumerator Run(FirstPersonController player, Transform eyes, ChaseRunner suspect, float delay, Action<string> say)
         {
@@ -46,7 +47,7 @@ namespace NightChase
             cuffs.transform.SetParent(suspectRoot, true);
             cuffs.transform.SetPositionAndRotation(WristCenter(), suspectRoot.rotation);
 
-            var partner = FindPartner(suspect);
+            var partner = Partner = FindPartner(suspect);
             Transform searchTarget = new GameObject("Search target").transform;
             searchTarget.SetParent(suspectRoot, false);
             searchTarget.localPosition = new Vector3(.23f, .94f, -.20f);
@@ -153,3 +154,4 @@ namespace NightChase
         }
     }
 }
+

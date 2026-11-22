@@ -222,7 +222,7 @@ namespace NightChase
 
             RestoreControl();
             yield return new WaitForSeconds(endDelay);
-            InventoryManager.Receive(movement);
+            InventoryManager.Receive(movement, () => ArrestStationTransition.Begin(movement, eyes, suspect, sequence.Partner));
             onArrested.Invoke();
             Arrested?.Invoke();
         }
@@ -354,3 +354,4 @@ namespace NightChase
         }
     }
 }
+
