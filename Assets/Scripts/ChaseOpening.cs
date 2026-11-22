@@ -18,7 +18,16 @@ namespace NightChase
             new Vector3(18.5f, 0, -18.25f),
             new Vector3(20f, 0, -15.4f),
             new Vector3(20f, 0, -2f),
-            new Vector3(20f, 0, 17.5f)
+            new Vector3(20f, 0, 17.5f),
+            new Vector3(20.5f, 0, 24.4f),
+            new Vector3(31.7f, 0, 24.4f),
+            new Vector3(37.35f, 0, 23.9f),
+            new Vector3(37.35f, 0, 18f),
+            new Vector3(37.35f, 0, 1f),
+            new Vector3(37.35f, 0, -17f),
+            new Vector3(37.35f, 0, -21.9f),
+            new Vector3(35.8f, 0, -23.5f),
+            new Vector3(33.6f, 0, -23.7f)
         };
         [SerializeField] Vector3[] partnerWaypoints =
         {
@@ -167,6 +176,18 @@ namespace NightChase
             yield return new WaitUntil(() => Physics.Linecast(eyes.position,
                 partner.transform.position + Vector3.up * .9f, ~0, QueryTriggerInteraction.Ignore));
             partner.gameObject.SetActive(false);
+        }
+
+        void Update()
+        {
+            if (!chaseActive || !suspect || !suspect.Arrived
+                || FlatDistance(player.transform.position, suspect.transform.position) > 2.8f
+                || Physics.Linecast(eyes.position, suspect.transform.position + Vector3.up, ~0,
+                    QueryTriggerInteraction.Ignore)) return;
+
+            chaseActive = false;
+            dialogue = null;
+            gameObject.AddComponent<ChaseFight>().Begin(player.transform, eyes, suspect);
         }
 
         void ReleaseControls()

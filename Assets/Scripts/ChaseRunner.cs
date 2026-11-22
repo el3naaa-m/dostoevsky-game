@@ -21,6 +21,7 @@ namespace NightChase
         Transform visual;
 
         public bool Moving { get; private set; }
+        public bool Arrived { get; private set; }
 
         public static ChaseRunner Spawn(Transform parent, string name, Vector3 location, Color shirt)
         {
@@ -49,6 +50,7 @@ namespace NightChase
         {
             reachTarget = null;
             nextPoint = 0;
+            Arrived = false;
             route = points;
             agent.speed = speed;
             Advance();
@@ -82,6 +84,7 @@ namespace NightChase
                 }
                 Debug.LogWarning($"Нет полного пути для {name} к точке {point}.", this);
             }
+            else Arrived = route.Length > 0;
 
             agent.ResetPath();
             agent.isStopped = true;
