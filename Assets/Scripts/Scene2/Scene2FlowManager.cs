@@ -74,7 +74,7 @@ namespace NightChase.Station
             exit.Bind(this);
             layout = GetOrAdd<StationLayout>();
             yield return layout.Build(this, puzzle, exit, fatherPhoto);
-            GetOrAdd<SecurityAttention>().Bind(this, layout.Board);
+            GetOrAdd<SecurityAttention>().Bind(this, layout);
 
             // Переход с улицы сам возвращает контроллер после затемнения.
             yield return new WaitUntil(() => Player && Player.isActiveAndEnabled);

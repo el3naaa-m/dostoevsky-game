@@ -22,6 +22,7 @@ namespace NightChase.Station
                 if (route.Length > 0)
                 {
                     departure.Begin(layout.Chief, null, null, route, navMeshOnly: true, movementSpeed: layout.ChiefWalkSpeed);
+                    layout.OfficeArrival = departure;
                     StartCoroutine(FaceBoardOnArrival(departure, layout));
                 }
             }

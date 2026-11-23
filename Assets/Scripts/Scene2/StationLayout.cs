@@ -273,6 +273,7 @@ namespace NightChase.Station
 
         [Header("Контроллеры бюро · параметры Speed (float), Sitting (bool)")]
         [SerializeField] RuntimeAnimatorController partnerController, chiefController, suspectController;
+        internal EscortSystem OfficeArrival { get; set; }
         internal bool SeatingChief { get; set; }
         readonly Dictionary<NavMeshAgent, float> smoothedSpeeds = new();
         static readonly int Speed = Animator.StringToHash("Speed");

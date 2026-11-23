@@ -297,6 +297,53 @@ namespace NightChase.Station
             return result;
         }
 
+        RectTransform alertBar, caughtPanel;
+        Image alertFill;
+        TextMeshProUGUI alertLabel;
+
+        internal void ShowAttention(float amount, bool seen, bool crouched)
+        {
+            if (!alertBar)
+            {
+                alertBar = Rect(canvas, "Внимание шефа", Vector2.zero, new Vector2(350, 54));
+                alertBar.anchorMin = alertBar.anchorMax = new Vector2(.5f, 0);
+                alertBar.anchoredPosition = new Vector2(0, 40);
+                var background = alertBar.gameObject.AddComponent<Image>();
+                background.color = new Color(.035f,.045f,.05f,.9f);
+                background.raycastTarget = false;
+                alertLabel = Text(alertBar, "", new Vector2(0,8), new Vector2(346,30), 17);
+                var fill = Rect(alertBar, "Уровень", Vector2.zero, new Vector2(20,7));
+                fill.pivot = new Vector2(0,.5f);
+                fill.anchoredPosition = new Vector2(-160,-13);
+                alertFill = fill.gameObject.AddComponent<Image>();
+                alertFill.raycastTarget = false;
+            }
+            alertBar.gameObject.SetActive(true);
+            alertBar.SetAsLastSibling();
+            alertFill.rectTransform.sizeDelta = new Vector2(Mathf.Lerp(18,320,amount),7);
+            alertFill.color = seen ? new Color(1,.18f,.13f) : Color.Lerp(new Color(.23f,.85f,.43f), Color.red, amount);
+            alertLabel.text = seen ? "Шеф вас видит!" : crouched ? "Вы пригнулись   ·   F — встать" : "Внимание шефа   ·   F — пригнуться";
+        }
+
+        internal void ShowCaught()
+        {
+            HideAttention();
+            if (!caughtPanel)
+            {
+                caughtPanel = Rect(canvas, "Пойманы", Vector2.zero, new Vector2(500,100));
+                caughtPanel.gameObject.AddComponent<Image>().color = new Color(.53f,.04f,.04f,.98f);
+                Text(caughtPanel, "ВАС ПОЙМАЛИ", Vector2.zero, new Vector2(480,90), 46);
+            }
+            caughtPanel.gameObject.SetActive(true);
+            caughtPanel.SetAsLastSibling();
+        }
+
+        internal void HideAttention()
+        {
+            if (alertBar) alertBar.gameObject.SetActive(false);
+            if (caughtPanel) caughtPanel.gameObject.SetActive(false);
+        }
+
         void OnDestroy()
         {
             if (font) Destroy(font);
