@@ -20,16 +20,11 @@ namespace NightChase.Station
                 seating.ReleaseChief(layout);
                 var departure = gameObject.AddComponent<EscortSystem>();
                 departure.Begin(layout.Chief, null, null, layout.ChiefOfficeRoute);
-                StartCoroutine(SeatOnArrival(departure, layout, seating));
+                layout.OfficeArrival = departure;
             }
             flow.SetStage(Scene2FlowManager.Stage.HandoverEquipment);
         }
-        IEnumerator SeatOnArrival(EscortSystem departure, StationLayout layout, InterrogationSequence seating)
-        {
-            yield return new WaitUntil(() => !layout.Chief || departure.Complete);
-            if (layout.Chief && seating)
-                yield return seating.SeatChiefInOffice(layout);
-        }
+
     }
 }
 // На Scene2 Mechanics, запускается менеджером после допроса.

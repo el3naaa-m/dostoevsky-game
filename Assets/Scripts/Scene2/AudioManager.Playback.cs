@@ -103,6 +103,14 @@ namespace NightChase.Station
 
         internal void PlayHandcuffs() => PlayOneShot(handcuffs, .57f);
 
+        internal void CounterImpact() => StartCoroutine(PlayCounterImpact());
+
+        IEnumerator PlayCounterImpact()
+        {
+            yield return new WaitForSeconds(.14f);
+            PlayOneShot(Pick(impacts), .36f);
+        }
+
         internal void FightCue(bool hit) => PlayOneShot(hit ? Pick(impacts) : miss, .40f);
 
         void LateUpdate()

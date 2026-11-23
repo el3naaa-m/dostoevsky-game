@@ -179,6 +179,7 @@ namespace NightChase
                 Trigger(playerAnimator, "Hit");
                 ShowHands("Hit", true);
                 Trigger(opponentAnimator, "Punch");
+                NightChase.Station.AudioManager.Instance?.CounterImpact();
                 if (opponentVisual) opponentVisual.FightMotion("Punch", false);
                 if (misses >= missesToLose) StartCoroutine(FinishLoss());
             }
