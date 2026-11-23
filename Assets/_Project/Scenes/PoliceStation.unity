@@ -13116,7 +13116,7 @@ TextMesh:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 347431761}
-  m_Text: STAIR  /  HOLDING
+  m_Text: ЛЕСТНИЦА  /  КАМЕРЫ
   m_OffsetZ: 0
   m_CharacterSize: 0.037
   m_LineSpacing: 1
@@ -35668,7 +35668,7 @@ TextMesh:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 923516665}
-  m_Text: HOLDING  /  INTERVIEW
+  m_Text: КАМЕРЫ
   m_OffsetZ: 0
   m_CharacterSize: 0.037
   m_LineSpacing: 1
