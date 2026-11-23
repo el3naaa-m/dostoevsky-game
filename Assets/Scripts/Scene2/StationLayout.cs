@@ -55,22 +55,36 @@ namespace NightChase.Station
             {
                 Marker("SpawnPoint", new Vector3(-10.5f,0,17.55f)),
                 Marker("StairsBottom", new Vector3(-11.18f,0,20.42f)),
-                Marker("StairsTurnLower", new Vector3(-11.18f,1.65f,25.2f)),
-                Marker("StairsTurnUpper", new Vector3(-9.82f,1.65f,25.2f)),
+                Marker("StairsTurnLower", new Vector3(-11.18f,1.8f,25.94f)),
+                Marker("StairsTurnUpper", new Vector3(-9.82f,1.8f,25.94f)),
                 Marker("StairsTop", new Vector3(-9.82f,3.3f,20.36f)),
                 Marker("CellDoor", new Vector3(-5.45f,3.3f,19.1f))
             };
-            CellInterior = Marker("CellInterior", new Vector3(-5.45f,3.3f,16.95f));
+            var entrance = CellRoute[CellRoute.Length - 1];
             float doorDistance = 2f;
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 foreach (var door in root.GetComponentsInChildren<Transform>())
                 {
                     if (!door.parent || door.name != "Door" || !door.parent.name.StartsWith("DoorCell")) continue;
-                    float distance = Vector3.Distance(door.position, CellRoute[CellRoute.Length - 1].position);
+                    float distance = Vector3.Distance(door.position, entrance.position);
                     if (distance >= doorDistance) continue;
                     doorDistance = distance;
                     CellDoor = door;
                 }
+
+            Vector3 interior = new Vector3(-5.45f, 3.3f, 16.95f);
+            if (CellDoor && CellDoor.TryGetComponent<MeshFilter>(out var leaf) && leaf.sharedMesh)
+            {
+                // The package's door leaf closes at its prefab's identity rotation.
+                var hinge = CellDoor.localPosition;
+                hinge.x += leaf.sharedMesh.bounds.center.x;
+                var threshold = CellDoor.parent.TransformPoint(hinge);
+                var inward = CellDoor.parent.forward;
+                entrance.position = threshold - inward * .9f;
+                interior = threshold + inward * 1.15f;
+            }
+            CellInterior = Marker("CellInterior", interior);
+
             ChiefOfficeRoute = new[]
             {
                 Marker("Station_ChiefExit", new Vector3(-10.45f, 0, 13f)),

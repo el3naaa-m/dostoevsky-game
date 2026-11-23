@@ -5,13 +5,19 @@ namespace NightChase.Station
 {
     public sealed class SuspensionSequence : MonoBehaviour
     {
-        internal IEnumerator Run(Scene2FlowManager flow, DialogueData lines, StationLayout layout, InterrogationSequence seating)
+        internal IEnumerator Run(Scene2FlowManager flow, DialogueData lines, StationLayout layout, InterrogationSequence seating, Transform eyes)
         {
             bool delivered = false;
-            flow.Dialogue.Play(lines, () => delivered = true);
+            flow.Dialogue.Play(lines, () =>
+            {
+                flow.Lock(true);
+                delivered = true;
+            });
             yield return new WaitUntil(() => delivered);
+            yield return seating.StandPlayer(flow.Player.transform, eyes);
             if (layout.Chief)
             {
+                seating.ReleaseChief(layout);
                 var departure = gameObject.AddComponent<EscortSystem>();
                 departure.Begin(layout.Chief, null, null, layout.ChiefOfficeRoute);
                 StartCoroutine(SeatOnArrival(departure, layout, seating));

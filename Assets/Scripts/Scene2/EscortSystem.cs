@@ -100,6 +100,11 @@ namespace NightChase.Station
             if (issued) return;
             if (index >= points.Length)
             {
+                if (hasFollower && Vector3.Distance(follower.transform.position, destination) > 1.15f)
+                {
+                    UseDirectRoute();
+                    return;
+                }
                 Complete = true;
                 leader.isStopped = true;
                 if (hasFollower) follower.isStopped = true;
@@ -139,7 +144,18 @@ namespace NightChase.Station
         {
             Debug.LogWarning($"{leader.name}: перехожу на движение по точкам.", leader);
             direct = true;
-            followerIndex = index;
+            if (follower)
+            {
+                float nearest = float.PositiveInfinity;
+                for (int i = 0; i <= Mathf.Min(index, points.Length - 1); i++)
+                {
+                    if (!points[i]) continue;
+                    float distance = (follower.transform.position - points[i].position).sqrMagnitude;
+                    if (distance >= nearest) continue;
+                    nearest = distance;
+                    followerIndex = i;
+                }
+            }
             leader.enabled = false;
             if (follower) follower.enabled = false;
         }
@@ -148,8 +164,8 @@ namespace NightChase.Station
         {
             if (!player || Vector3.Distance(player.position, leader.transform.position) <= waitDistance)
                 Walk(leader.transform, ref index, points.Length);
-            if (follower) Walk(follower.transform, ref followerIndex, Mathf.Min(index, points.Length - 1));
-            if (index < points.Length || (follower && followerIndex < points.Length - 1)) return;
+            if (follower) Walk(follower.transform, ref followerIndex, index);
+            if (index < points.Length || (follower && followerIndex < points.Length)) return;
             running = false;
             Complete = true;
         }

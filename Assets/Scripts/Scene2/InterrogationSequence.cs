@@ -91,26 +91,49 @@ namespace NightChase.Station
             yield return Animate(playerAnimator, "Player", eyes, eyeRest, .48f, true);
         }
 
-        internal IEnumerator Stand(StationLayout layout, Transform player, Transform eyes)
+        internal IEnumerator StandChief(StationLayout layout, Transform eyes)
         {
             if (graph.IsValid()) graph.Destroy();
             var chief = layout.Chief;
-            float t = 0;
-            var eyeFrom = eyes.localPosition;
             var chiefFrom = chief.transform.position;
-            while (t < .3f)
+            var lookFrom = eyes.rotation;
+            var lookDirection = chiefGoal + Vector3.up * 1.55f - eyes.position;
+            var lookTo = lookDirection.sqrMagnitude > .001f ? Quaternion.LookRotation(lookDirection) : lookFrom;
+            const float duration = .55f;
+            for (float t = 0; t < duration; t += Time.deltaTime)
             {
-                t += Time.deltaTime;
-                float blend = Mathf.SmoothStep(0,1,t/.3f);
-                eyes.localPosition = Vector3.Lerp(eyeFrom, eyeRest, blend);
+                float blend = Mathf.SmoothStep(0, 1, t / duration);
                 chief.transform.position = Vector3.Lerp(chiefFrom, chiefGoal, blend);
+                eyes.rotation = Quaternion.Slerp(lookFrom, lookTo, blend);
+                yield return null;
+            }
+            chief.transform.position = chiefGoal;
+            eyes.rotation = lookTo;
+            if (chiefChair) yield return chiefChair.StandUp();
+            ChiefSeated = false;
+        }
+
+        internal IEnumerator StandPlayer(Transform player, Transform eyes)
+        {
+            var eyeFrom = eyes.localPosition;
+            var lookFrom = eyes.localRotation;
+            for (float t = 0; t < .3f; t += Time.deltaTime)
+            {
+                float blend = Mathf.SmoothStep(0, 1, t / .3f);
+                eyes.localPosition = Vector3.Lerp(eyeFrom, eyeRest, blend);
+                eyes.localRotation = Quaternion.Slerp(lookFrom, eyeRotation, blend);
                 yield return null;
             }
             player.SetPositionAndRotation(playerRest, playerRotation);
+            eyes.localPosition = eyeRest;
             eyes.localRotation = eyeRotation;
             if (controller) controller.enabled = controllerEnabled;
             if (playerChair) yield return playerChair.StandUp();
-            if (chiefChair) yield return chiefChair.StandUp();
+        }
+
+        internal void ReleaseChief(StationLayout layout)
+        {
+            var chief = layout.Chief;
             chief.enabled = chiefAgentEnabled;
             if (chief.enabled && NavMesh.SamplePosition(chiefGoal, out var hit, 1f, chief.areaMask)) chief.Warp(hit.position);
             layout.SeatingChief = false;

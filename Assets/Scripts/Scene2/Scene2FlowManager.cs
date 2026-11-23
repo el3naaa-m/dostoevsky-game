@@ -87,7 +87,7 @@ namespace NightChase.Station
                     route = layout.CellRoute;
                 if (!layout.Suspect) Debug.LogError("[EscortSystem] У задержанного отсутствует NavMeshAgent.", this);
                 escort.Begin(layout.Partner, layout.Suspect, null, route);
-                StartCoroutine(PlaceSuspectInCell());
+                StartCoroutine(PlaceSuspectInCell(route.LastOrDefault(point => point)));
                 CorridorReached();
             });
         }
@@ -113,43 +113,39 @@ namespace NightChase.Station
             }
         }
 
-        IEnumerator PlaceSuspectInCell()
+        IEnumerator PlaceSuspectInCell(Transform routeEnd)
         {
             yield return new WaitUntil(() => escort.Complete);
             var suspect = layout.Suspect;
-            if (!suspect || Vector3.Distance(suspect.transform.position, layout.CellInterior.position) > 4f)
-                yield break;
-            if (!suspect.isOnNavMesh)
-            {
-                var leaf = layout.CellDoor;
-                var closed = leaf ? leaf.localRotation : Quaternion.identity;
-                if (leaf) leaf.localRotation = closed * Quaternion.Euler(0, 90, 0);
-                foreach (var point in new[] { layout.CellRoute[layout.CellRoute.Length - 1], layout.CellInterior })
-                    while ((suspect.transform.position - point.position).sqrMagnitude > .001f)
-                    {
-                        suspect.transform.position = Vector3.MoveTowards(suspect.transform.position, point.position, 1.8f * Time.deltaTime);
-                        yield return null;
-                    }
-                if (leaf) leaf.localRotation = closed;
-                yield break;
-            }
-            if (!UnityEngine.AI.NavMesh.SamplePosition(layout.CellInterior.position, out var hit, .65f, suspect.areaMask))
-                yield break;
+            if (!suspect) yield break;
 
-            var cellDoor = layout.CellDoor;
-            Quaternion closedRotation = cellDoor ? cellDoor.localRotation : Quaternion.identity;
-            if (cellDoor) cellDoor.localRotation = closedRotation * Quaternion.Euler(0, 90, 0);
-            suspect.isStopped = false;
-            if (!suspect.SetDestination(hit.position))
+            var entrance = layout.CellRoute[layout.CellRoute.Length - 1];
+            var interior = layout.CellInterior;
+            var door = layout.CellDoor;
+            suspect.enabled = false;
+            if (door) door.localRotation = Quaternion.Euler(0, -85, 0);
+
+            if (routeEnd != entrance)
+                yield return WalkIntoCell(suspect.transform, entrance.position);
+            yield return WalkIntoCell(suspect.transform, interior.position);
+            if (door) door.localRotation = Quaternion.identity;
+
+            var towardCorridor = Vector3.ProjectOnPlane(entrance.position - interior.position, Vector3.up);
+            if (towardCorridor.sqrMagnitude > .01f)
+                suspect.transform.rotation = Quaternion.LookRotation(towardCorridor);
+        }
+
+        static IEnumerator WalkIntoCell(Transform actor, Vector3 destination)
+        {
+            while (actor && (actor.position - destination).sqrMagnitude > .0001f)
             {
-                if (cellDoor) cellDoor.localRotation = closedRotation;
-                yield break;
+                var direction = Vector3.ProjectOnPlane(destination - actor.position, Vector3.up);
+                if (direction.sqrMagnitude > .001f)
+                    actor.rotation = Quaternion.RotateTowards(actor.rotation, Quaternion.LookRotation(direction), 360f * Time.deltaTime);
+                actor.position = Vector3.MoveTowards(actor.position, destination, 1.8f * Time.deltaTime);
+                yield return null;
             }
-            float deadline = Time.time + 12f;
-            yield return new WaitUntil(() => Time.time >= deadline || Vector3.Distance(suspect.transform.position, hit.position) < .4f);
-            if (suspect.isOnNavMesh) suspect.isStopped = true;
-            if (cellDoor && Vector3.Distance(suspect.transform.position, hit.position) < .4f)
-                cellDoor.localRotation = closedRotation;
+            if (actor) actor.position = destination;
         }
 
         void Update()
@@ -232,10 +228,11 @@ namespace NightChase.Station
         IEnumerator FinishInterview()
         {
             Lock(true);
-            yield return seating.Stand(layout, Player.transform, eyes);
+            yield return new WaitForSeconds(.65f);
+            yield return seating.StandChief(layout, eyes);
             SetStage(Stage.Suspension);
             yield return suspensionSequence.Run(this, suspension ? suspension : StationDialogue.Suspension(),
-                layout, seating);
+                layout, seating, eyes);
             Lock(false);
         }
 
