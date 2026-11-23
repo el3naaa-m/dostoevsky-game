@@ -14,6 +14,7 @@ namespace NightChase.Station
         internal NavMeshAgent Partner { get; private set; }
         internal NavMeshAgent Suspect { get; private set; }
         internal NavMeshAgent Chief { get; private set; }
+        internal NavMeshAgent Clerk { get; private set; }
         internal Transform[] Route { get; private set; }
         internal Transform[] CellRoute { get; private set; }
         internal Transform CellInterior { get; private set; }
@@ -110,7 +111,7 @@ namespace NightChase.Station
             Corridor = Zone("Station_Corridor", new Vector3(-10.5f, .9f, 16.25f), new Vector3(3.4f, 2.2f, 1.6f), flow.CorridorReached);
             Exit = Zone("Station_Exit", new Vector3(-20.4f, .9f, 19.5f), new Vector3(1.5f, 2.2f, 2.5f), exit.Enter);
             // Сотрудник ждёт за правой дверью в конце коридора, у столов архива.
-            var clerk = Actor("ArchiveClerk", "Ch07", new Vector3(-13.9f, 0, 3.85f), new Color(.32f,.35f,.4f));
+            var clerk = Clerk = Actor("ArchiveClerk", "Ch07", new Vector3(-13.9f, 0, 3.85f), new Color(.32f,.35f,.4f));
             clerk.enabled = false;
             clerk.transform.rotation = Quaternion.identity;
             var clerkTarget = new GameObject("Приём снаряжения");
@@ -128,6 +129,7 @@ namespace NightChase.Station
                 {
                     if (item.name is "Rack (1)" or "Rack (10)")
                         if (!item.GetComponent<ArchiveRack>()) item.gameObject.AddComponent<ArchiveRack>();
+                    if (item.name == "MeetingTable") PutDonutsOnTable(item);
                     if ((item.name is "Clock (1)" or "Clock (2)" or "ClockB (2)") && !item.GetComponent<StationClock>())
                     {
                         if (!item.GetComponentInChildren<Collider>())
@@ -152,6 +154,22 @@ namespace NightChase.Station
                 "СЛУЖБА ИММИГРАЦИИ США · НЬЮ-ЙОРК\nКарточка прибытия. 11 сентября 1989 г.\nПрежний работодатель: графа перечёркнута. Адрес для корреспонденции: Брайтон-Бич, Бруклин.\nШтамп: «СВЕРЕНО». От руки: «Уточнить дату первого въезда»."));
             AddLabel(drawer.transform, "Ящик");
             puzzle.Bind(new[] { knife, key, note }, drawer);
+        }
+
+        static void PutDonutsOnTable(Transform table)
+        {
+            if (table.GetComponentInChildren<DonutBox>()) return;
+            var collider = table.GetComponentInChildren<Collider>();
+            if (!collider) return;
+            var bounds = collider.bounds;
+            var prop = new GameObject("Коробка с пончиками");
+            prop.transform.SetParent(table,true);
+            prop.transform.position = new Vector3(bounds.center.x,bounds.max.y+.006f,bounds.center.z);
+            prop.transform.rotation = Quaternion.Euler(0,table.eulerAngles.y,0);
+            var hit = prop.AddComponent<BoxCollider>();
+            hit.center = new Vector3(0,.08f,.015f);
+            hit.size = new Vector3(.49f,.18f,.35f);
+            prop.AddComponent<DonutBox>().Build();
         }
 
         void InstallTape()
@@ -239,6 +257,19 @@ namespace NightChase.Station
                 return hit.position;
             }
             return candidates[candidates.Length-1];
+        }
+
+        internal Transform DialogueActor(string speaker)
+        {
+            var actor = speaker?.Trim().ToLowerInvariant() switch
+            {
+                "шеф" or "начальник" => Chief,
+                "джо" or "напарник" => Partner,
+                "дежурная" or "сотрудник архива" => Clerk,
+                "преступник" or "задержанный" => Suspect,
+                _ => null
+            };
+            return actor && actor.gameObject.activeInHierarchy ? actor.transform : null;
         }
 
         internal void LookAtPlayer(Transform view)

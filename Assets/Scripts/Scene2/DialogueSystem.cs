@@ -80,7 +80,11 @@ namespace NightChase.Station
             var line = dialogue.lines[index];
             shownFrame = Time.frameCount;
             elapsed = 0;
-            if (flow) flow.Lock(true);
+            if (flow)
+            {
+                flow.Lock(true);
+                flow.FocusDialogueSpeaker(line.speaker);
+            }
             view.ShowDialogue(line.speaker, line.text, line.portrait ? line.portrait : defaultPortrait ? defaultPortrait.sprite : null,
                 linear ? null : line.choices, SelectChoice);
         }

@@ -29,7 +29,9 @@ namespace NightChase.Station
         InterrogationSequence seating;
         [SerializeField] RouteGizmos interrogationRoute, detentionRoute;
         SuspensionSequence suspensionSequence;
-        Transform eyes;
+        Transform eyes, speakingActor, speakerHead;
+        Quaternion dialogueViewBefore;
+        bool dialogueViewSaved;
         StationInteractable highlighted;
         bool ready, controlsLocked, restoreMovement, restoreCapture, inventoryOpen, corridorSpoken;
         string message;
@@ -319,8 +321,40 @@ namespace NightChase.Station
             UI.Show(title, body);
         }
 
+        internal void FocusDialogueSpeaker(string speaker)
+        {
+            if (!eyes || !layout) return;
+            if (!dialogueViewSaved)
+            {
+                dialogueViewBefore = eyes.localRotation;
+                dialogueViewSaved = true;
+            }
+            speakingActor = layout.DialogueActor(speaker);
+            speakerHead = null;
+            if (!speakingActor) return;
+            var animator = speakingActor.GetComponentInChildren<Animator>();
+            if (animator && animator.isHuman) speakerHead = animator.GetBoneTransform(HumanBodyBones.Head);
+        }
+
+        void LateUpdate()
+        {
+            if (!dialogueViewSaved || !eyes || !Dialogue.Active) return;
+            Vector3 direction = speakingActor
+                ? (speakerHead ? speakerHead.position : speakingActor.position + Vector3.up * 1.55f) - eyes.position
+                : Vector3.ProjectOnPlane(eyes.forward,Vector3.up);
+            Vector3 horizontal = Vector3.ProjectOnPlane(direction,Vector3.up);
+            if (horizontal.sqrMagnitude < .01f) horizontal = Player.transform.forward;
+            float pitchOffset = Mathf.Clamp(direction.y,-horizontal.magnitude,horizontal.magnitude);
+            var target = Quaternion.LookRotation(horizontal + Vector3.up*pitchOffset);
+            eyes.rotation = Quaternion.Slerp(eyes.rotation,target,1 - Mathf.Exp(-Time.unscaledDeltaTime*9f));
+        }
+
         internal void ClosePanel()
         {
+            // Вернуть исходный взгляд до разблокировки контроллера и следующей катсцены.
+            if (dialogueViewSaved && eyes) eyes.localRotation = dialogueViewBefore;
+            dialogueViewSaved = false;
+            speakingActor = speakerHead = null;
             if (layout && layout.Handover) layout.Handover.Close();
             UI.Close();
             if (layout && layout.Board) layout.Board.Close();

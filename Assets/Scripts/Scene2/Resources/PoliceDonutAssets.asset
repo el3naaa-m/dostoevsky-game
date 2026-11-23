@@ -1,0 +1,15 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_Script: {fileID: 11500000, guid: 7f3451ca33004a3eb98115620fc6b58e, type: 3}
+  m_Name: PoliceDonutAssets
+  m_EditorClassIdentifier:
+  first: {fileID: 3590384279383445572, guid: 3693e02f1ef06fc4d933412fc7d9cbad, type: 3}
+  second: {fileID: 8318440037485577215, guid: 057bec8382ada034ebe6f7510e278344, type: 3}
