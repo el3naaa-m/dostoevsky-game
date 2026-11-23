@@ -17,18 +17,19 @@ namespace NightChase.Station
             yield return seating.StandPlayer(flow.Player.transform, eyes);
             if (layout.Chief)
             {
-                seating.ReleaseChief(layout);
                 var departure = gameObject.AddComponent<EscortSystem>();
-                departure.Begin(layout.Chief, null, null, layout.ChiefOfficeRoute);
-                StartCoroutine(SeatOnArrival(departure, layout, seating));
+                departure.Begin(layout.Chief, null, null, layout.ChiefOfficeRoute, navMeshOnly: true);
+                StartCoroutine(FaceBoardOnArrival(departure, layout));
             }
             flow.SetStage(Scene2FlowManager.Stage.HandoverEquipment);
         }
-        IEnumerator SeatOnArrival(EscortSystem departure, StationLayout layout, InterrogationSequence seating)
+        IEnumerator FaceBoardOnArrival(EscortSystem departure, StationLayout layout)
         {
-            yield return new WaitUntil(() => !layout.Chief || departure.Complete);
-            if (layout.Chief && seating)
-                yield return seating.SeatChiefInOffice(layout);
+            yield return new WaitUntil(() => !layout.Chief || departure.Complete || departure.Failed);
+            if (!layout.Chief || !departure.Complete || !layout.OfficeBoard) yield break;
+            Vector3 direction = layout.OfficeBoard.position - layout.Chief.transform.position;
+            direction.y = 0;
+            if (direction.sqrMagnitude > .001f) layout.Chief.transform.rotation = Quaternion.LookRotation(direction);
         }
     }
 }

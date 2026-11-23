@@ -18,9 +18,13 @@ namespace NightChase.Station
         Vector3 destination;
         internal const string MissingWaypoints = "[EscortSystem] Ошибка: не назначены waypoints!";
         public bool Complete { get; private set; }
+        internal bool Failed { get; private set; }
+        bool requireNavMesh;
 
-        internal void Begin(NavMeshAgent lead, NavMeshAgent companion, Transform observer, Transform[] route)
+        internal void Begin(NavMeshAgent lead, NavMeshAgent companion, Transform observer, Transform[] route, bool navMeshOnly = false)
         {
+            requireNavMesh = navMeshOnly;
+            Failed = false;
             leader = lead;
             follower = companion;
             player = observer;
@@ -45,6 +49,9 @@ namespace NightChase.Station
             if (follower) LogAgent(follower);
             lastPosition = leader.transform.position;
             lastProgress = Time.time;
+            if (requireNavMesh && !leader.isOnNavMesh &&
+                NavMesh.SamplePosition(leader.transform.position,out var nearby,.45f,leader.areaMask))
+                leader.Warp(nearby.position);
             if (!leader.isOnNavMesh || (follower && !follower.isOnNavMesh)) UseDirectRoute();
             leader.speed = pace;
             if (follower && follower.isOnNavMesh) follower.speed = pace;
@@ -129,7 +136,7 @@ namespace NightChase.Station
                     destination = candidate;
                 }
             }
-            if (selected != index || !leader.SetDestination(destination))
+            if (selected != index || (requireNavMesh && !FollowsCorridor(destination)) || !leader.SetDestination(destination))
             {
                 UseDirectRoute();
                 return;
@@ -140,8 +147,34 @@ namespace NightChase.Station
             issued = true;
         }
 
+        bool FollowsCorridor(Vector3 goal)
+        {
+            var start = leader.nextPosition;
+            var path = new NavMeshPath();
+            if (!NavMesh.CalculatePath(start,goal,leader.areaMask,path) || path.status != NavMeshPathStatus.PathComplete)
+                return false;
+            var segment = goal - start;
+            foreach (var corner in path.corners)
+            {
+                float fraction = segment.sqrMagnitude > .001f
+                    ? Mathf.Clamp01(Vector3.Dot(corner-start,segment)/segment.sqrMagnitude) : 0;
+                // Не принимать обход через соседнюю комнату вместо прохода по заданному коридору.
+                if ((corner - (start+segment*fraction)).sqrMagnitude > 1.15f*1.15f) return false;
+            }
+            return true;
+        }
+
         void UseDirectRoute()
         {
+            // Для кабинета попытка пройти напрямую могла бы провести шефа сквозь стены.
+            if (requireNavMesh)
+            {
+                if (leader.isOnNavMesh) leader.isStopped = true;
+                Debug.LogWarning($"[EscortSystem] {leader.name}: маршрут остановлен у точки {index}. Проверьте NavMesh и дверной проём.",leader);
+                running = false;
+                Failed = true;
+                return;
+            }
             Debug.LogWarning($"{leader.name}: перехожу на движение по точкам.", leader);
             direct = true;
             if (follower)

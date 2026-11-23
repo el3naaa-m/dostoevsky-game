@@ -22,10 +22,11 @@ namespace NightChase.Station
             fatherPhoto = portrait ? portrait : Resources.Load<Texture2D>("StationEvidence/Portrait");
         }
 
-        public override string Prompt(Scene2FlowManager flow) => "E — осмотреть доску";
+        public override string Prompt(Scene2FlowManager flow) => flow.InvestigationUnlocked ? "E — осмотреть доску" : "";
 
         public override void Use(Scene2FlowManager flow)
         {
+            if (!flow.InvestigationUnlocked) return;
             if (flow.State == Scene2FlowManager.Stage.NoticeBoard)
                 flow.SetStage(Scene2FlowManager.Stage.SearchPuzzle);
             flow.Lock(true);

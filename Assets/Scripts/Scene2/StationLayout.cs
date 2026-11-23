@@ -19,6 +19,7 @@ namespace NightChase.Station
         internal Transform CellInterior { get; private set; }
         internal Transform CellDoor { get; private set; }
         internal Transform[] ChiefOfficeRoute { get; private set; }
+        internal Transform OfficeBoard { get; private set; }
         internal NoticeBoard Board { get; private set; }
         internal EquipmentHandover Handover { get; private set; }
         internal Transform SearchStart { get; private set; }
@@ -37,8 +38,8 @@ namespace NightChase.Station
             if (data) navigation = NavMesh.AddNavMeshData(data);
 
             gameObject.AddComponent<StationStairMaterials>().Repair();
-            Partner = Actor("Partner", "Ch33", new Vector3(-11.05f, 0, 15.75f), Color.white);
-            Suspect = Actor("Suspect", "Ch08", new Vector3(-9.8f, 0, 18.4f), new Color(.12f, .28f, .66f), true);
+            Partner = Actor("Partner", "Ch33", new Vector3(-11.1f, 0, 19.6f), Color.white);
+            Suspect = Actor("Suspect", "Ch08", new Vector3(-9.9f, 0, 20.15f), new Color(.12f, .28f, .66f), true);
             Chief = Actor("Chief", "Ch31", new Vector3(-10.15f, 0, 14.25f), new Color(.12f, .16f, .22f));
             foreach (var actor in new[] { Partner, Chief })
             {
@@ -61,7 +62,6 @@ namespace NightChase.Station
                     }
             CellRoute = new[]
             {
-                Marker("SpawnPoint", new Vector3(-10.5f,0,17.55f)),
                 Marker("StairsBottom", new Vector3(-11.18f,0,20.42f)),
                 Marker("StairsTurnLower", new Vector3(-11.18f,1.8f,25.94f)),
                 Marker("StairsTurnUpper", new Vector3(-9.82f,1.8f,25.94f)),
@@ -95,14 +95,22 @@ namespace NightChase.Station
 
             ChiefOfficeRoute = new[]
             {
+                Marker("Station_ChiefInterviewInside", new Vector3(-8.1f, 0, 13f)),
                 Marker("Station_ChiefExit", new Vector3(-10.45f, 0, 13f)),
+                Marker("Station_ChiefCorridorMid", new Vector3(-10.45f, 0, 7f)),
                 Marker("Station_ChiefCorridorEnd", new Vector3(-10.45f, 0, -.85f)),
                 Marker("Station_ChiefTurnLeft", new Vector3(-7.5f, 0, -.85f)),
-                Marker("Station_ChiefOfficeHall", new Vector3(-7.5f, 0, 1f)),
-                Marker("Station_ChiefAlongWall", new Vector3(.75f, 0, 1f)),
+                Marker("Station_ChiefHallDoor", new Vector3(-7.5f, 0, 0f)),
+                Marker("Station_ChiefOfficeHall", new Vector3(-7.5f, 0, 1.35f)),
+                Marker("Station_ChiefHallWall", new Vector3(-3.5f, 0, 1.35f)),
+                Marker("Station_ChiefAlongWall", new Vector3(.75f, 0, 1.35f)),
                 Marker("Station_ChiefOfficeDoor", new Vector3(.75f, 0, -.55f)),
-                Marker("Station_ChiefOffice", new Vector3(.75f, 0, -1.8f))
+                Marker("Station_ChiefOffice", new Vector3(1.75f, 0, -.90f))
             };
+            OfficeBoard = Marker("Station_ChiefWhiteboard",new Vector3(1.78f,1.65f,-.085f));
+            if (!OfficeBoard.TryGetComponent<WhiteboardGenerator>(out var whiteboard))
+                whiteboard = OfficeBoard.gameObject.AddComponent<WhiteboardGenerator>();
+            whiteboard.Build();
             SearchStart = Marker("Station_SearchStart", new Vector3(-13.25f, 0, 1.7f));
 
             Corridor = Zone("Station_Corridor", new Vector3(-10.5f, .9f, 16.25f), new Vector3(3.4f, 2.2f, 1.6f), flow.CorridorReached);
@@ -126,6 +134,12 @@ namespace NightChase.Station
                 {
                     if (item.name is "Rack (1)" or "Rack (10)")
                         if (!item.GetComponent<ArchiveRack>()) item.gameObject.AddComponent<ArchiveRack>();
+                    if ((item.name is "Clock (1)" or "Clock (2)" or "ClockB (2)") && !item.GetComponent<StationClock>())
+                    {
+                        if (!item.GetComponentInChildren<Collider>())
+                            item.gameObject.AddComponent<BoxCollider>().size = new Vector3(.34f,.34f,.12f);
+                        item.gameObject.AddComponent<StationClock>();
+                    }
                     if (item.name == "InformationBoard_01")
                         Board = item.TryGetComponent<NoticeBoard>(out var board) ? board : item.gameObject.AddComponent<NoticeBoard>();
                     if (item.name is "FileCabinetA (1)" or "FileCabinetA (6)" or "FileCabinetA (7)")

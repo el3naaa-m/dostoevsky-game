@@ -17,17 +17,18 @@ namespace NightChase.Station
             "Отчет детектива Миллера. 10 августа 1999 г.\n" +
             "При осмотре склада №4 в Бруклинском порту обнаружены мешки с нитратом аммония. Следы взрывателя.\n" +
             "Свидетель (охранник) показал: «Видел мужчину, славянская внешность, назвался \"инспектором\". Сказал, что проверяет груз для судоходной компании».\n" +
-            "Фотография с камеры наблюдения прилагается.",
+            "На групповом снимке опознан Карамазов-старший. По показаниям Миллера, он давно знаком с людьми из порта. Фотография с камеры прилагается.",
             "Подозрительно: на складе найдена визитка с номером, который принадлежит фирме «Славянский экспорт» — подставной компании, связанной с бывшими сотрудниками КГБ, осевшими в Бруклине в 1990 году."
         };
         [SerializeField] AudioClip witnessRecording;
         AudioSource tape;
         static readonly string[] OtherNames = { "Волков", "Громов", "Зайцев", "Ковалёв", "Лебедев", "Орлов", "Соколов" };
 
-        public override string Prompt(Scene2FlowManager flow) => "E — открыть архивный шкаф";
+        public override string Prompt(Scene2FlowManager flow) => flow.InvestigationUnlocked ? "E — открыть архивный шкаф" : "";
 
         public override void Use(Scene2FlowManager flow)
         {
+            if (!flow.InvestigationUnlocked) return;
             flow.Lock(true);
             ShowCabinet(flow);
         }
@@ -165,6 +166,7 @@ namespace NightChase.Station
             void ShowPage(int index)
             {
                 body.text = CasePages[index];
+                if (index == 0) InvestigationNotes.For(flow).MillerRead = true;
                 folio.text = $"{index + 1} / {CasePages.Length}";
                 folio.alignment = index == 0 ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.MidlineRight;
                 previous.gameObject.SetActive(index == 1);

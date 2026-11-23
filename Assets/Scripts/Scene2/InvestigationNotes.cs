@@ -7,40 +7,79 @@ namespace NightChase.Station
         internal const string Photo = "Северный вход, 21:40";
         internal const string Conclusion = "Подпись на фото и показания свидетеля указывают на северный вход после девяти. Нужно выяснить, когда его закрыли на самом деле.";
         internal const string Testimony = "После девяти дверь ещё открывалась.";
-        internal bool PhotoRead, Linked, TapePinned;
+        internal const string BoardEntry = "Квитанция оформлена сегодня на Кравца, человека с фотографии. Его инициалы стоят на схеме рядом с датой заседания — 15 сентября.";
+        const string MillerEntry = "В августе Миллер связал отца с людьми из порта. Судя по отчёту, они знакомы давно.";
+        const string TapeEntry = "Это голос отца. Он говорит о нападении как о деле, которое ещё впереди. Люди из порта уже согласились помочь.";
+        const string FinalEntry = "Отец и люди из порта готовят теракт. Цель — федеральный суд. Заседание через три дня.";
 
-        internal bool CourtSolved, Tape44BHeard, Tape44BTaken;
-        internal string CourtConclusion =>
-            "Кравец стоит рядом с отцом на снимке. На его имя взяли фургон за день до слушания. Его инициалы стоят рядом с отметкой на схеме. Они готовили нападение на суд пятнадцатого сентября."
-            + (Tape44BHeard ? "\n\nТеперь понятно, о каком плане отец говорил на записи." : "");
+        internal bool PhotoRead, Linked, TapePinned;
+        internal bool CourtSolved, Tape44BHeard, Tape44BTaken, MillerRead;
+        bool finalRecorded;
+        internal int FatherCaseCount => (MillerRead ? 1 : 0) + (Tape44BHeard ? 1 : 0) + (CourtSolved ? 1 : 0);
 
         internal static InvestigationNotes For(Scene2FlowManager flow) =>
             flow.TryGetComponent<InvestigationNotes>(out var notes) ? notes : flow.gameObject.AddComponent<InvestigationNotes>();
 
         internal void Show(Scene2FlowManager flow)
         {
+            if (!flow.InvestigationUnlocked) return;
             flow.Lock(true);
             var ui = flow.UI.Workspace;
-            var screen = ui.Page("Журнал находок",flow.ClosePanel);
-            if (!PhotoRead && !Linked && !TapePinned && !CourtSolved && !Tape44BHeard)
-                ui.Label(screen,"Записей пока нет.",new(.08f,.62f), new(.92f,.81f),27);
-            if (PhotoRead) ui.Label(screen,Photo + "\nИсточник: оборот фото на доске перед кабинетом шефа.",new(.08f,.64f),new(.92f,.82f),27);
-            if (Linked) ui.Label(screen,Conclusion,new(.08f,.15f),new(.92f,.38f),27);
-            if (TapePinned) ui.Label(screen,Testimony + "\nИсточник: кассета, 00:12.",new(.08f,.04f),new(.62f,.15f),22);
-            if (Tape44BHeard)
-                ui.Label(screen,"Кассета 44-Б\nОтец обсуждал нападение и говорил, что люди из порта согласились помочь.",new(.65f,.24f),new(.95f,.41f),21);
-            if (CourtSolved) ui.Button(screen,"Дело Ист-Ривер",new(.65f,.13f),new(.95f,.21f),() =>
+            int count = FatherCaseCount;
+            var screen = ui.Page($"Дело отца  {count}/3",flow.ClosePanel);
+            ui.Label(screen,"Сегодня · 12 сентября 1999 года",new(.08f,.78f),new(.92f,.87f),25);
+            float row = .74f;
+            if (MillerRead) Entry("Архивное дело Миллера",MillerEntry);
+            if (Tape44BHeard) Entry("Кассета 44-Б",TapeEntry);
+            if (CourtSolved) Entry("Связь на доске",BoardEntry);
+            if (count == 0)
+                ui.Label(screen,"Пока нет записей.",new(.08f,.54f),new(.92f,.71f),26);
+            if (count == 3)
             {
-                var detail = ui.Page("Вывод по делу Ист-Ривер",() => Show(flow),"К журналу");
-                ui.Label(detail,CourtConclusion,new(.10f,.22f),new(.90f,.78f),32);
-            });
-            ui.Button(screen,"Документы",new(.65f,.035f),new(.95f,.12f),() =>
+                ui.Label(screen,"Сегодня · 12 сентября     Заседание · 15 сентября",new(.08f,.025f),new(.57f,.14f),23);
+                ui.Button(screen,finalRecorded ? "Читать вывод" : "Собрать вывод", new(.60f,.045f),new(.94f,.14f),
+                    () => ShowConclusion(flow));
+            }
+            ui.Button(screen,"Прочие находки",new(.08f,.15f),new(.38f,.22f),() => ShowOther(flow));
+            ui.Button(screen,"Документы",new(.41f,.15f),new(.66f,.22f),() =>
             {
                 ui.Close();
                 var archive = flow.GetComponent<EvidenceLog>();
                 if (!archive) archive = flow.gameObject.AddComponent<EvidenceLog>();
                 archive.Show(flow);
             });
+
+            void Entry(string title,string line)
+            {
+                ui.Label(screen,title + "\n" + line,new(.08f,row-.15f),new(.93f,row),25);
+                row -= .17f;
+            }
+        }
+
+        void ShowConclusion(Scene2FlowManager flow)
+        {
+            var ui = flow.UI.Workspace;
+            var screen = ui.Page(finalRecorded ? "Вывод записан" : "Собрать вывод",() => Show(flow),"К делу отца");
+            ui.Label(screen,"Сегодня · 12 сентября 1999\nЗаседание · 15 сентября 1999",new(.10f,.62f),new(.91f,.84f),28);
+            if (finalRecorded)
+                ui.Label(screen,FinalEntry,new(.10f,.25f),new(.91f,.57f),32);
+            else
+                ui.Button(screen,"Подтвердить вывод",new(.10f,.28f),new(.49f,.40f),() =>
+                {
+                    finalRecorded = true;
+                    ShowConclusion(flow);
+                });
+        }
+
+        void ShowOther(Scene2FlowManager flow)
+        {
+            var ui = flow.UI.Workspace;
+            var screen = ui.Page("Прочие находки",() => Show(flow),"К делу отца");
+            if (!PhotoRead && !Linked && !TapePinned)
+                ui.Label(screen,"Пока нет записей.",new(.08f,.62f),new(.92f,.81f),27);
+            if (PhotoRead) ui.Label(screen,Photo + "\nИсточник: оборот фото на доске перед кабинетом шефа.",new(.08f,.64f),new(.92f,.82f),27);
+            if (Linked) ui.Label(screen,Conclusion,new(.08f,.4f),new(.92f,.59f),27);
+            if (TapePinned) ui.Label(screen,Testimony + "\nИсточник: кассета, 00:12.",new(.08f,.17f),new(.92f,.35f),22);
         }
     }
 }
