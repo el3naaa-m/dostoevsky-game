@@ -28,9 +28,8 @@ namespace NightChase.Station
         internal EquipmentHandover Handover { get; private set; }
         internal Transform SearchStart { get; private set; }
         internal TriggerZone Corridor { get; private set; }
-        internal TriggerZone Exit { get; private set; }
 
-        internal IEnumerator Build(Scene2FlowManager flow, PuzzleDependencies puzzle, ExitTrigger exit, Texture2D fatherPhoto)
+        internal IEnumerator Build(Scene2FlowManager flow, PuzzleDependencies puzzle, Texture2D fatherPhoto)
         {
             var data = Resources.Load<NavMeshData>("StationTwoFloorNavMesh");
             if (!data)
@@ -60,11 +59,19 @@ namespace NightChase.Station
             };
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 foreach (var node in root.GetComponentsInChildren<Transform>())
+                {
                     if (node.name is "MainDoorA (3)" or "MainDoorA (1)" or "Door (1)" or "Door (3)")
                     {
                         if (!node.TryGetComponent<DoorController>(out var door)) door = node.gameObject.AddComponent<DoorController>();
                         door.Bind(flow.Player.transform, Chief.transform);
                     }
+                    // The black exterior door directly under SignExit (4), beside the archive.
+                    if (node.name == "Door (5)" && (node.position - new Vector3(-18f,0,-1.5f)).sqrMagnitude < .25f)
+                    {
+                        if (!node.TryGetComponent<ExitTrigger>(out var exit)) exit = node.gameObject.AddComponent<ExitTrigger>();
+                        exit.Bind(flow.Ending);
+                    }
+                }
             CellRoute = new[]
             {
                 Marker("StairsBottom", new Vector3(-11.18f,0,20.42f)),
@@ -109,7 +116,6 @@ namespace NightChase.Station
             SearchStart = Marker("Station_SearchStart", new Vector3(-13.25f, 0, 1.7f));
 
             Corridor = Zone("Station_Corridor", new Vector3(-10.5f, .9f, 16.25f), new Vector3(3.4f, 2.2f, 1.6f), flow.CorridorReached);
-            Exit = Zone("Station_Exit", new Vector3(-20.4f, .9f, 19.5f), new Vector3(1.5f, 2.2f, 2.5f), exit.Enter);
             // Сотрудник ждёт за правой дверью в конце коридора, у столов архива.
             var clerk = Clerk = Actor("ArchiveClerk", "Ch07", new Vector3(-13.9f, 0, 3.85f), new Color(.32f,.35f,.4f));
             clerk.enabled = false;

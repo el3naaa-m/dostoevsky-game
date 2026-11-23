@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
@@ -14,7 +15,7 @@ namespace NightChase.Station
         StationUI view;
         bool linear;
         float elapsed;
-        bool pendingNext;
+        bool pendingNext, monologue, turningPage, spaceArmed;
         AudioSource fallbackAudio;
         internal int CurrentIndex => index;
 
@@ -43,7 +44,11 @@ namespace NightChase.Station
 
         internal void Bind(Scene2FlowManager manager) { flow = manager; view = manager.UI; }
 
-        public void Play(DialogueData data, Action onEnd = null)
+        public void Play(DialogueData data, Action onEnd = null) => Begin(data, onEnd, false);
+
+        internal void PlayMonologue(DialogueData data, Action onEnd) => Begin(data, onEnd, true);
+
+        void Begin(DialogueData data, Action onEnd, bool useMonologue)
         {
             if (Active) return;
             if (!data || data.lines == null || data.lines.Length == 0)
@@ -52,6 +57,8 @@ namespace NightChase.Station
                 return;
             }
             pendingNext = false;
+            monologue = useMonologue;
+            spaceArmed = false;
             dialogue = data;
             index = 0;
             finished = onEnd;
@@ -62,6 +69,16 @@ namespace NightChase.Station
         {
             if (!Active) return;
             var keyboard = Keyboard.current;
+            if (monologue)
+            {
+                if (keyboard == null) return;
+                bool pressed = keyboard.spaceKey.isPressed;
+                bool nextPage = spaceArmed && pressed;
+                spaceArmed = !pressed;
+                if (nextPage && !turningPage && shownFrame != Time.frameCount)
+                    StartCoroutine(TurnPage());
+                return;
+            }
             if (keyboard?.spaceKey.wasPressedThisFrame == true) pendingNext = true;
             if (pendingNext && shownFrame != Time.frameCount)
             {
@@ -83,13 +100,22 @@ namespace NightChase.Station
             if (flow)
             {
                 flow.Lock(true);
-                flow.FocusDialogueSpeaker(line.speaker);
+                if (!monologue) flow.FocusDialogueSpeaker(line.speaker);
             }
             view.ShowDialogue(line.speaker, line.text, line.portrait ? line.portrait : defaultPortrait ? defaultPortrait.sprite : null,
-                linear ? null : line.choices, SelectChoice);
+                linear || monologue ? null : line.choices, SelectChoice, monologue);
         }
 
-        public void Next() => NextLine(true);
+        public void Next() { if (!monologue) NextLine(true); }
+
+        IEnumerator TurnPage()
+        {
+            turningPage = true;
+            yield return view.FadeDialogue(0, .18f);
+            Advance(index + 1);
+            if (Active) yield return view.FadeDialogue(1, .2f);
+            turningPage = false;
+        }
 
         void NextLine(bool userInput)
         {
@@ -134,8 +160,9 @@ namespace NightChase.Station
             if (!string.IsNullOrEmpty(cue)) onLineEvent.Invoke(cue);
             if (target >= 0 && target < dialogue.lines.Length) { index = target; Show(); return; }
             dialogue = null;
-            if (flow) flow.ClosePanel();
+            if (flow) flow.ClosePanel(!monologue);
             else view.Close();
+            monologue = false;
             var callback = finished;
             finished = null;
             callback?.Invoke();

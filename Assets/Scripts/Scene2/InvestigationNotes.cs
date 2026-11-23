@@ -15,6 +15,7 @@ namespace NightChase.Station
         internal bool PhotoRead, Linked, TapePinned;
         internal bool CourtSolved, Tape44BHeard, Tape44BTaken, MillerRead;
         bool finalRecorded;
+        internal bool FinalRecorded => finalRecorded;
         internal int FatherCaseCount => (MillerRead ? 1 : 0) + (Tape44BHeard ? 1 : 0) + (CourtSolved ? 1 : 0);
 
         internal static InvestigationNotes For(Scene2FlowManager flow) =>
@@ -41,13 +42,6 @@ namespace NightChase.Station
                     () => ShowConclusion(flow));
             }
             ui.Button(screen,"Прочие находки",new(.08f,.15f),new(.38f,.22f),() => ShowOther(flow));
-            ui.Button(screen,"Документы",new(.41f,.15f),new(.66f,.22f),() =>
-            {
-                ui.Close();
-                var archive = flow.GetComponent<EvidenceLog>();
-                if (!archive) archive = flow.gameObject.AddComponent<EvidenceLog>();
-                archive.Show(flow);
-            });
 
             void Entry(string title,string line)
             {
@@ -58,17 +52,14 @@ namespace NightChase.Station
 
         void ShowConclusion(Scene2FlowManager flow)
         {
+            if (FatherCaseCount != 3 || (!finalRecorded && flow.State != Scene2FlowManager.Stage.SearchPuzzle)) return;
             var ui = flow.UI.Workspace;
-            var screen = ui.Page(finalRecorded ? "Вывод записан" : "Собрать вывод",() => Show(flow),"К делу отца");
+            var screen = ui.Page("Вывод записан",finalRecorded ? () => Show(flow) : null,"К делу отца");
             ui.Label(screen,"Сегодня · 12 сентября 1999\nЗаседание · 15 сентября 1999",new(.10f,.62f),new(.91f,.84f),28);
-            if (finalRecorded)
-                ui.Label(screen,FinalEntry,new(.10f,.25f),new(.91f,.57f),32);
-            else
-                ui.Button(screen,"Подтвердить вывод",new(.10f,.28f),new(.49f,.40f),() =>
-                {
-                    finalRecorded = true;
-                    ShowConclusion(flow);
-                });
+            ui.Label(screen,FinalEntry,new(.10f,.41f),new(.91f,.60f),32);
+            if (finalRecorded) return;
+            finalRecorded = true;
+            flow.Ending.Begin(this);
         }
 
         void ShowOther(Scene2FlowManager flow)

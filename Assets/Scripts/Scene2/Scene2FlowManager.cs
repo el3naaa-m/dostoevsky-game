@@ -10,7 +10,7 @@ namespace NightChase.Station
     public sealed class Scene2FlowManager : MonoBehaviour
     {
         public const string ScenePath = "Assets/_Project/Scenes/PoliceStation.unity";
-        public enum Stage { Arrival, Escort, Interrogation, Suspension, HandoverEquipment, NoticeBoard, SearchPuzzle, Exit }
+        public enum Stage { Arrival, Escort, Interrogation, Suspension, HandoverEquipment, NoticeBoard, SearchPuzzle, Exit, ChapterEnding }
 
         [SerializeField] DialogueData arrival, corridor, interview, suspension;
         [SerializeField] Texture2D fatherPhoto;
@@ -22,6 +22,7 @@ namespace NightChase.Station
         public event Action<Stage> StageChanged;
         internal AudioManager Audio { get; private set; }
         internal StationUI UI { get; private set; }
+        internal ChapterEndingController Ending { get; private set; }
 
         StationLayout layout;
         PuzzleDependencies puzzle;
@@ -72,10 +73,10 @@ namespace NightChase.Station
             escort = GetOrAdd<EscortSystem>();
             chiefRoute = gameObject.AddComponent<EscortSystem>();
             suspensionSequence = GetOrAdd<SuspensionSequence>();
-            var exit = GetOrAdd<ExitTrigger>();
-            exit.Bind(this);
+            Ending = GetOrAdd<ChapterEndingController>();
+            Ending.Bind(this, playerCamera);
             layout = GetOrAdd<StationLayout>();
-            yield return layout.Build(this, puzzle, exit, fatherPhoto);
+            yield return layout.Build(this, puzzle, fatherPhoto);
             GetOrAdd<SecurityAttention>().Bind(this, layout);
 
             // Переход с улицы сам возвращает контроллер после затемнения.
@@ -163,6 +164,7 @@ namespace NightChase.Station
             {
                 displayedEvidence = count;
                 UI.EvidenceProgress.text = $"Улики {count}/3   ·   J — журнал улик";
+                CheckEvidence();
             }
             var key = Keyboard.current;
             if (State == Stage.Escort && chiefRoute.Complete && !UI.Modal &&
@@ -277,30 +279,25 @@ namespace NightChase.Station
                 Stage.HandoverEquipment => "Сдайте вещи дежурной у стойки. Архив в конце коридора, справа",
                 Stage.NoticeBoard => "Осмотрите доску в общем зале со столами следователей",
                 Stage.SearchPuzzle => EvidenceObjective(),
-                Stage.Exit => "Выйдите из бюро",
+                Stage.Exit => ChapterEndingController.ExitObjective,
                 _ => ""
             };
             layout.Corridor.gameObject.SetActive(next == Stage.Escort);
-            layout.Exit.gameObject.SetActive(next == Stage.Exit);
             StageChanged?.Invoke(next);
         }
 
         string EvidenceObjective()
         {
-            bool clipping = Inventory.Has("BrightonNote");
-            bool arrival = Inventory.Has("Immigration");
-            string lead;
-            if (!clipping) lead = "Осмотрите столы в архиве";
-            else if (!arrival) lead = Inventory.Has("Key") ? "Откройте ящик в архиве" : "Обыщите столы рядом с ящиком";
-            else lead = Inventory.Has("Knife") ? "Вернитесь к доске в зале следователей" : "Найдите в архиве инструмент для доски";
-            return lead;
+            var notes = InvestigationNotes.For(this);
+            if (notes.FatherCaseCount == 3) return "Соберите вывод в журнале улик   [J]";
+            if (!notes.MillerRead) return "Найдите отчёт Миллера в архивном шкафу";
+            if (!notes.Tape44BHeard) return notes.Tape44BTaken ? "Воспроизведите кассету 44-Б" : "Найдите кассету 44-Б на стеллаже с вещдоками";
+            return "Сопоставьте улики на доске";
         }
 
         internal void CheckEvidence()
         {
-            if (State != Stage.SearchPuzzle) return;
-            if (puzzle.Complete(Inventory)) SetStage(Stage.Exit);
-            else UI.Objective.text = EvidenceObjective();
+            if (State == Stage.SearchPuzzle) UI.Objective.text = EvidenceObjective();
         }
 
         internal void RestartSearch()
@@ -349,7 +346,9 @@ namespace NightChase.Station
             eyes.rotation = Quaternion.Slerp(eyes.rotation,target,1 - Mathf.Exp(-Time.unscaledDeltaTime*9f));
         }
 
-        internal void ClosePanel()
+        internal void ClosePanel() => ClosePanel(true);
+
+        internal void ClosePanel(bool unlock)
         {
             // Вернуть исходный взгляд до разблокировки контроллера и следующей катсцены.
             if (dialogueViewSaved && eyes) eyes.localRotation = dialogueViewBefore;
@@ -359,7 +358,7 @@ namespace NightChase.Station
             UI.Close();
             if (layout && layout.Board) layout.Board.Close();
             inventoryOpen = false;
-            Lock(false);
+            if (unlock) Lock(false);
         }
 
         internal void Lock(bool locked)

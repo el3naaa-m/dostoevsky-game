@@ -1,41 +1,66 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace NightChase.Station
 {
-    public sealed class ExitTrigger : MonoBehaviour
+    public sealed class ExitTrigger : StationInteractable
     {
-        [SerializeField] string nextScene;
-        Scene2FlowManager flow;
-        bool running;
-        internal void Bind(Scene2FlowManager manager) => flow = manager;
+        ChapterEndingController ending;
+        Transform leaf;
+        Animation animationPlayer;
+        string clipName;
+        Quaternion closed;
+        bool opened;
 
-        public void Enter()
+        internal void Bind(ChapterEndingController chapter)
         {
-            if (!flow || running || flow.State != Scene2FlowManager.Stage.Exit) return;
-            running = true;
-            var question = new DialogueData.Line("Джо", "Ты уверен, что хочешь копать это дальше?");
-            var conclusion = new DialogueData.Line("Джо", "Похоже, твой отец не просто пропал. Он сбежал. И, судя по всему, не от хорошей жизни.");
-            flow.Dialogue.Play(flow.Inventory.Has("father_note") ? DialogueData.From(question, conclusion) : DialogueData.From(question), () => StartCoroutine(Finish()));
+            ending = chapter;
+            leaf = transform.Find("Door");
+            if (leaf) closed = leaf.localRotation;
+            animationPlayer = GetComponent<Animation>();
+            if (TryGetComponent<QA_Door>(out var original))
+            {
+                clipName = original.OpenForwardAnimName;
+                original.enabled = false;
+            }
+            if (animationPlayer) animationPlayer.Stop();
         }
 
-        IEnumerator Finish()
+        public override string Prompt(Scene2FlowManager flow) =>
+            ending && ending.CanExit && Vector3.Dot(flow.Player.transform.position - transform.position,transform.forward) > 0
+                ? "E — Выйти"
+                : "";
+
+        public override void Use(Scene2FlowManager flow)
         {
-            flow.ClosePanel();
-            flow.Lock(true);
-            flow.Audio.PlayOneShot(flow.Audio.exitDoor);
-            yield return flow.Fade(1, .7f);
-            if (!string.IsNullOrWhiteSpace(nextScene) && Application.CanStreamedLevelBeLoaded(nextScene))
+            if (Prompt(flow).Length != 0) ending.ExitThrough(this);
+        }
+
+        internal IEnumerator Open()
+        {
+            if (opened) yield break;
+            opened = true;
+            var clip = animationPlayer && !string.IsNullOrEmpty(clipName) ? animationPlayer[clipName] : null;
+            if (clip != null)
             {
-                yield return SceneManager.LoadSceneAsync(nextScene);
+                animationPlayer.Play(clipName);
+                clip.wrapMode = WrapMode.ClampForever;
+                clip.speed = 1;
+                clip.normalizedTime = 0;
+                yield return new WaitForSeconds(clip.length);
+                clip.normalizedTime = 1;
+                animationPlayer.Sample();
                 yield break;
             }
-
-            Debug.Log("Конец сцены 2");
-            yield return flow.Fade(0, .45f);
-            flow.UI.Objective.text = "Конец сцены 2";
+            if (!leaf) yield break;
+            const float duration = .65f;
+            var open = closed * Quaternion.Euler(0,-95,0);
+            for (float elapsed = 0; elapsed < duration; elapsed += Time.deltaTime)
+            {
+                leaf.localRotation = Quaternion.Slerp(closed,open,Mathf.SmoothStep(0,1,elapsed / duration));
+                yield return null;
+            }
+            leaf.localRotation = open;
         }
     }
 }
-// У выхода рядом с TriggerZone. Его On Enter вызывает Enter; Next Scene необязательна.

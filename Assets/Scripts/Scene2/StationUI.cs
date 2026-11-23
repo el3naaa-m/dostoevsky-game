@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -20,6 +21,7 @@ namespace NightChase.Station
         RectTransform details;
         TMP_FontAsset font;
         RectTransform dialogueStrip;
+        CanvasGroup dialogueOpacity;
         TextMeshProUGUI dialogueSpeaker, dialogueLine, dialogueNext;
         Image dialogueAvatar;
         RectTransform dialogueOptions;
@@ -73,6 +75,7 @@ namespace NightChase.Station
             dialogueStrip.anchorMin = new Vector2(.035f,.025f);
             dialogueStrip.anchorMax = new Vector2(.965f,.245f);
             dialogueStrip.offsetMin = dialogueStrip.offsetMax = Vector2.zero;
+            dialogueOpacity = dialogueStrip.gameObject.AddComponent<CanvasGroup>();
             var backdrop = dialogueStrip.gameObject.AddComponent<Image>();
             backdrop.color = new Color(.028f,.044f,.048f,.92f);
             var border = dialogueStrip.gameObject.AddComponent<Outline>();
@@ -223,11 +226,12 @@ namespace NightChase.Station
                 dialogueNext.alpha = .85f + .15f * Mathf.Sin(Time.unscaledTime * 3);
         }
 
-        public void ShowDialogue(string speaker, string line, Sprite portrait, DialogueData.Choice[] choices, Action<int> select)
+        public void ShowDialogue(string speaker, string line, Sprite portrait, DialogueData.Choice[] choices, Action<int> select, bool monologue = false)
         {
             panel.gameObject.SetActive(false);
             dialogueSpeaker.text = speaker;
             dialogueLine.text = line;
+            if (!monologue) dialogueOpacity.alpha = 1;
             bool branching = choices != null && choices.Length > 0;
             dialogueAvatar.sprite = portrait;
             dialogueAvatar.enabled = portrait;
@@ -267,6 +271,32 @@ namespace NightChase.Station
                     label.alignment = TextAlignmentOptions.MidlineLeft;
                 }
             dialogueStrip.gameObject.SetActive(true);
+        }
+
+        internal IEnumerator FadeDialogue(float target, float duration)
+        {
+            float start = dialogueOpacity.alpha;
+            for (float elapsed = 0; elapsed < duration; elapsed += Time.unscaledDeltaTime)
+            {
+                dialogueOpacity.alpha = Mathf.SmoothStep(start,target,elapsed / duration);
+                yield return null;
+            }
+            dialogueOpacity.alpha = target;
+        }
+
+        internal TextMeshProUGUI ChapterLabel(string name, string value, Vector2 min, Vector2 max, int points, bool overBlack = false)
+        {
+            var rect = EvidenceWorkspace.Rect(overBlack ? Fade.transform : canvas,name,min,max);
+            if (!overBlack) rect.SetSiblingIndex(Fade.transform.GetSiblingIndex());
+            var label = Text(rect,value,Vector2.zero,Vector2.zero,points);
+            label.rectTransform.anchorMin = Vector2.zero;
+            label.rectTransform.anchorMax = Vector2.one;
+            label.rectTransform.offsetMin = label.rectTransform.offsetMax = Vector2.zero;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 13;
+            label.fontSizeMax = points;
+            label.richText = false;
+            return label;
         }
 
         public void Close()
