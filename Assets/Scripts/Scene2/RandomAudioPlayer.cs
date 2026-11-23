@@ -13,7 +13,12 @@ namespace NightChase.Station
             if (clips == null || Time.time < next) return;
             next = Time.time + Random.Range(20,55);
             int i = Random.Range(0,clips.Length);
-            if (clips[i]) AudioSource.PlayClipAtPoint(clips[i],positions[i],.35f);
+            for (int n = 0; n < clips.Length; n++, i = (i + 1) % clips.Length)
+            {
+                if (!clips[i]) continue;
+                AudioSource.PlayClipAtPoint(clips[i], positions[i], .35f);
+                break;
+            }
         }
     }
 }

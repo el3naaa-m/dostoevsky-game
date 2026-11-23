@@ -59,7 +59,8 @@ namespace NightChase.Station
             var playerCamera = Player.GetComponentInChildren<Camera>();
             eyes = playerCamera ? playerCamera.transform : Player.transform;
             UI = DialogueSystem.CreateView(transform);
-            Audio = GetOrAdd<AudioManager>();
+            Audio = FindIn<AudioManager>(gameObject.scene);
+            if (!Audio) Audio = GetOrAdd<AudioManager>();
             Audio.Bind(Player.transform);
             Inventory = GetOrAdd<StationInventory>();
             Inventory.SeedStreetEquipment();

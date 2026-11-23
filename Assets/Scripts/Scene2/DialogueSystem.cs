@@ -63,7 +63,7 @@ namespace NightChase.Station
             float duration = dialogue.lines[index].autoAdvanceSeconds;
             if (!linear || duration <= 0 || shownFrame == Time.frameCount) return;
             elapsed += Time.unscaledDeltaTime * (keyboard?.shiftKey.isPressed == true ? 3f : 1f);
-            if (elapsed >= duration) Next();
+            if (elapsed >= duration) NextLine(false);
         }
 
         void Show()
@@ -76,10 +76,13 @@ namespace NightChase.Station
                 linear ? null : line.choices, SelectChoice);
         }
 
-        public void Next()
+        public void Next() => NextLine(true);
+
+        void NextLine(bool userInput)
         {
             if (!Active || shownFrame == Time.frameCount) return;
             if (!linear && dialogue.lines[index].choices is { Length: > 0 }) return;
+            if (userInput) AudioManager.Instance?.PlayDialogueClick();
             Advance(index + 1);
         }
 
@@ -94,6 +97,7 @@ namespace NightChase.Station
                 Debug.LogWarning($"Некорректная цель варианта ответа: {target}.", this);
                 return;
             }
+            AudioManager.Instance?.PlayDialogueClick();
             Advance(target);
         }
 

@@ -87429,6 +87429,103 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4834031356391018, guid: 33e74c08c132e1545afd4d0bcf97f74d, type: 3}
   m_PrefabInstance: {fileID: 2142984240}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &710020001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 710020002}
+  - component: {fileID: 710020003}
+  m_Layer: 0
+  m_Name: AudioManager
+  m_TagString: Untagged
+  m_IsActive: 1
+--- !u!4 &710020002
+Transform:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 710020001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+--- !u!114 &710020003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 710020001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78a72d042ab0cf444a63d8b41e662217, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  dialogueClick: {fileID: 8300000, guid: b41e3aa8c6ed491498f34cb9a4c0abe6, type: 3}
+  handcuffs: {fileID: 8300000, guid: 39b55703356e4b10bdbf80977a61ea26, type: 3}
+  bureau: 1
+  chairSlide: {fileID: 8300000, guid: 5e597030f1c047b897b94416ca3594d3, type: 3}
+  fanLoop: {fileID: 8300000, guid: 89a78ec9cbc242fb8b777ee42561bfec, type: 3}
+  action:
+  - {fileID: 8300000, guid: e762c5c6b0fb4865a7d195cce631e2bb, type: 3}
+  beginning:
+  - {fileID: 8300000, guid: b13f903f1ec249b9a981b1c4b835f65f, type: 3}
+  breath:
+  - {fileID: 8300000, guid: fe7183375a2a45ff9ded01ccda894023, type: 3}
+  cars:
+  - {fileID: 8300000, guid: 22b84b18a2c342149ef7f0c8fc1bb046, type: 3}
+  - {fileID: 8300000, guid: e0c58cdbc8e647d787f7933cf69206bf, type: 3}
+  - {fileID: 8300000, guid: dab45d6cbc8242ebac23d435a60d48b5, type: 3}
+  city:
+  - {fileID: 8300000, guid: 173bd67fc3da47af8f64f92b485e3d96, type: 3}
+  - {fileID: 8300000, guid: a3b655b4c5154d0d986c4c55ffbb4c05, type: 3}
+  stepRecordings:
+  - {fileID: 8300000, guid: 732a55c5afd64de7b4da45bb3590f361, type: 3}
+  - {fileID: 8300000, guid: 672c70bbdfd348c5bbb8014ec95aa8f6, type: 3}
+  softFloor:
+  - {fileID: 8300000, guid: 32965a9647434829b394492b90b199fe, type: 3}
+  - {fileID: 8300000, guid: acf2c79adae94384a4b8f62a57ebb341, type: 3}
+  - {fileID: 8300000, guid: 0c2cd4ce43984ab7b8a2fcd5d777b126, type: 3}
+  - {fileID: 8300000, guid: 8286b4d9f8c042eb83e681b4e99d4bcf, type: 3}
+  - {fileID: 8300000, guid: 30c8edef38ae4fb7b5a33723c7d889c6, type: 3}
+  - {fileID: 8300000, guid: 2aa4f171bae147a58f0e080a3e840d1c, type: 3}
+  asphalt:
+  - {fileID: 8300000, guid: 32965a9647434829b394492b90b199fe, type: 3}
+  - {fileID: 8300000, guid: acf2c79adae94384a4b8f62a57ebb341, type: 3}
+  - {fileID: 8300000, guid: 0c2cd4ce43984ab7b8a2fcd5d777b126, type: 3}
+  - {fileID: 8300000, guid: 8286b4d9f8c042eb83e681b4e99d4bcf, type: 3}
+  - {fileID: 8300000, guid: 30c8edef38ae4fb7b5a33723c7d889c6, type: 3}
+  - {fileID: 8300000, guid: 2aa4f171bae147a58f0e080a3e840d1c, type: 3}
+  metalSteps:
+  - {fileID: 8300000, guid: e58c676173464c648e8ea7049b9d9ec3, type: 3}
+  - {fileID: 8300000, guid: b20e2708a6eb48eda496bb76cd5491c4, type: 3}
+  - {fileID: 8300000, guid: e4d90634ff874f85919df67d44188bfa, type: 3}
+  - {fileID: 8300000, guid: f674f389bccc42acbd7ac6994ec3bfeb, type: 3}
+  impacts:
+  - {fileID: 8300000, guid: 2c6f8aafce44457d92c7d4d8eb00c08d, type: 3}
+  - {fileID: 8300000, guid: 4ce95a29e30547f38ff8a844e7fc897a, type: 3}
+  - {fileID: 8300000, guid: 4170631c33da4de99cb4238b399a0519, type: 3}
+  - {fileID: 8300000, guid: e5200c9844ee4c1fbb620dda3bed669b, type: 3}
+  - {fileID: 8300000, guid: 642ee0bc6c5b470f9e649f8b04dd8c8f, type: 3}
+  - {fileID: 8300000, guid: b0357982797a463d8f211e8374eb92a8, type: 3}
+  miss: {fileID: 8300000, guid: 2e1be6c9f4e94b6aa0382d0964f3e706, type: 3}
+  jumps:
+  - {fileID: 8300000, guid: df8eab5b15a348c6988f98cced779b5e, type: 3}
+  landings:
+  - {fileID: 8300000, guid: 46bf9101dc784070a9997194778b839a, type: 3}
+  office:
+  - {fileID: 8300000, guid: 01c5399df90a4e2c8536e07bfd60f906, type: 3}
+  lamps: {fileID: 8300000, guid: be640298de094504b54d2bc8a8ec7fc0, type: 3}
+  chair: {fileID: 8300000, guid: 23671fc26b1f41a3985c7d0181f5871b, type: 3}
+  interviewDoor: {fileID: 8300000, guid: f17cc8e2e9ae442eafafecb2ce39d114, type: 3}
+  caught: {fileID: 8300000, guid: b4e112f144324b1d9701fd39f79c7fca, type: 3}
+  exitDoor: {fileID: 8300000, guid: 6a82197ca2d241fdad0ba09c946f7680, type: 3}
+  lockClick: {fileID: 8300000, guid: f703c07e9fee44c3bf04dd7e75612123, type: 3}
+  metal: {fileID: 8300000, guid: 1869ff85836c4b61b6ee1daa884fc750, type: 3}
+  paper: {fileID: 8300000, guid: e48a777a53b6475fb3b75fa072da5a8d, type: 3}
+  pickup: {fileID: 8300000, guid: 5def4c02760d412dab48f9141053f15b, type: 3}
+  warning: {fileID: 8300000, guid: c5b6f4c508294a329192532879f395ad, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -87443,3 +87540,4 @@ SceneRoots:
   - {fileID: 1162163135}
   - {fileID: 1468303042}
   - {fileID: 849242635}
+  - {fileID: 710020002}
