@@ -18,7 +18,7 @@ namespace NightChase.Station
         internal Transform[] CellRoute { get; private set; }
         internal Transform CellInterior { get; private set; }
         internal Transform CellDoor { get; private set; }
-        internal Transform ChiefExit { get; private set; }
+        internal Transform[] ChiefOfficeRoute { get; private set; }
         internal NoticeBoard Board { get; private set; }
         internal Transform SearchStart { get; private set; }
         internal TriggerZone Corridor { get; private set; }
@@ -37,14 +37,20 @@ namespace NightChase.Station
 
             Partner = Actor("Partner", "Ch33", new Vector3(-11.35f, 0, 18.7f), Color.white);
             Suspect = Actor("Suspect", "Ch08", new Vector3(-9.8f, 0, 18.4f), new Color(.12f, .28f, .66f), true);
-            Chief = Actor("Chief", "Ch31", new Vector3(-10.75f, 0, 17.25f), new Color(.12f, .16f, .22f));
+            Chief = Actor("Chief", "Ch31", new Vector3(-10.5f, 0, 16.05f), new Color(.12f, .16f, .22f));
             Route = new[]
             {
-                Marker("SpawnPoint", new Vector3(-10.5f,0,17.55f)),
                 Marker("CorridorPoint1", new Vector3(-10.35f, 0, 13f)),
                 Marker("InterrogationDoor", new Vector3(-8.6f, 0, 13f)),
                 Marker("Station_Interview", new Vector3(-7.4f, 0, 13.5f))
             };
+            foreach (var root in gameObject.scene.GetRootGameObjects())
+                foreach (var node in root.GetComponentsInChildren<Transform>())
+                    if (node.name is "MainDoorA (3)" or "MainDoorA (1)" or "Door (1)" or "Door (3)")
+                    {
+                        if (!node.TryGetComponent<DoorController>(out var door)) door = node.gameObject.AddComponent<DoorController>();
+                        door.Bind(flow.Player.transform, Chief.transform);
+                    }
             CellRoute = new[]
             {
                 Marker("SpawnPoint", new Vector3(-10.5f,0,17.55f)),
@@ -65,14 +71,30 @@ namespace NightChase.Station
                     doorDistance = distance;
                     CellDoor = door;
                 }
-            ChiefExit = Marker("Station_ChiefExit", new Vector3(-10.2f, 0, 13f));
+            ChiefOfficeRoute = new[]
+            {
+                Marker("Station_ChiefExit", new Vector3(-10.45f, 0, 13f)),
+                Marker("Station_ChiefCorridorEnd", new Vector3(-10.45f, 0, -.85f)),
+                Marker("Station_ChiefTurnLeft", new Vector3(-7.5f, 0, -.85f)),
+                Marker("Station_ChiefOfficeHall", new Vector3(-7.5f, 0, 1f)),
+                Marker("Station_ChiefAlongWall", new Vector3(.75f, 0, 1f)),
+                Marker("Station_ChiefOfficeDoor", new Vector3(.75f, 0, -.55f)),
+                Marker("Station_ChiefOffice", new Vector3(.75f, 0, -1.8f))
+            };
             SearchStart = Marker("Station_SearchStart", new Vector3(-13.25f, 0, 1.7f));
 
             Corridor = Zone("Station_Corridor", new Vector3(-10.5f, .9f, 16.25f), new Vector3(3.4f, 2.2f, 1.6f), flow.CorridorReached);
             Exit = Zone("Station_Exit", new Vector3(-20.4f, .9f, 19.5f), new Vector3(1.5f, 2.2f, 2.5f), exit.Enter);
-            var counter = Target<EquipmentHandover>("Station_Handover", new Vector3(-9.65f, 1.05f, 12.1f),
-                new Vector3(.8f, .75f, .6f));
-            AddLabel(counter.transform, "Кадры");
+            // Сотрудник ждёт за правой дверью в конце коридора, у столов архива.
+            var clerk = Actor("ArchiveClerk", "Ch06", new Vector3(-13.9f, 0, 3.85f), new Color(.32f,.35f,.4f));
+            clerk.enabled = false;
+            clerk.transform.rotation = Quaternion.Euler(0, 180, 0);
+            var clerkTarget = new GameObject("Приём снаряжения");
+            clerkTarget.transform.SetParent(clerk.transform, false);
+            var clerkCollider = clerkTarget.AddComponent<BoxCollider>();
+            clerkCollider.center = Vector3.up * .9f;
+            clerkCollider.size = new Vector3(.66f, 1.75f, .6f);
+            clerkTarget.AddComponent<EquipmentHandover>();
 
             var report = Item.Make("SovietRecord", "Советский документ",
                 "СССР · УПРАВЛЕНИЕ КАДРОВ\nЛичное дело № 81-04. Выписка от 14 июня 1986 г.\nДоступ к послужному списку ограничен. Круглая печать смазана.\nНа полях карандашом: «Нью-Йорк. Фамилию не подтверждать».");

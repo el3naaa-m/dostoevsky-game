@@ -21,7 +21,33 @@ namespace NightChase
         Vector3 planarVelocity;
         float verticalVelocity;
         float yaw, pitch, targetYaw, targetPitch, yawVelocity, pitchVelocity;
-        bool captureRequested;
+        bool captureRequested, dialogueLook, pinDialogueCamera;
+        float dialogueRoll;
+
+        // Катсцена оставляет мышь активной, но пропускает весь шаг CharacterController.
+        internal void BeginDialogueLook(bool pinCamera = false)
+        {
+            var viewRotation = eyes.eulerAngles;
+            var viewPosition = eyes.position;
+            yaw = targetYaw = viewRotation.y;
+            pitch = targetPitch = Mathf.Clamp(Mathf.DeltaAngle(0, viewRotation.x), -pitchLimit, pitchLimit);
+            dialogueRoll = Mathf.DeltaAngle(0, eyes.localEulerAngles.z);
+            transform.rotation = Quaternion.Euler(0, yaw, 0);
+            eyes.localRotation = Quaternion.Euler(pitch, 0, dialogueRoll);
+            if (pinCamera) eyes.position = viewPosition;
+            planarVelocity = Vector3.zero;
+            verticalVelocity = 0;
+            dialogueLook = true;
+            pinDialogueCamera = pinCamera;
+            enabled = true;
+            SetCapture(Application.isFocused);
+        }
+
+        internal void EndDialogueLook()
+        {
+            dialogueLook = false;
+            pinDialogueCamera = false;
+        }
 
         void Awake()
         {
@@ -65,7 +91,7 @@ namespace NightChase
             if (dt <= 0) return;
 
             if (captured && mouse != null) Look(mouse.delta.ReadValue(), dt);
-            Move(captured ? keyboard : null, dt);
+            if (!dialogueLook) Move(captured ? keyboard : null, dt);
         }
 
         void Look(Vector2 delta, float dt)
@@ -74,8 +100,10 @@ namespace NightChase
             targetPitch = Mathf.Clamp(targetPitch - delta.y * mouseSensitivity, -pitchLimit, pitchLimit);
             yaw = Mathf.SmoothDamp(yaw, targetYaw, ref yawVelocity, lookSmoothTime, Mathf.Infinity, dt);
             pitch = Mathf.SmoothDamp(pitch, targetPitch, ref pitchVelocity, lookSmoothTime, Mathf.Infinity, dt);
+            var viewPosition = eyes.position;
             transform.rotation = Quaternion.Euler(0, yaw, 0);
-            eyes.localRotation = Quaternion.Euler(pitch, 0, 0);
+            eyes.localRotation = Quaternion.Euler(pitch, 0, dialogueLook ? dialogueRoll : 0);
+            if (pinDialogueCamera) eyes.position = viewPosition;
         }
 
         void Move(Keyboard keyboard, float dt)

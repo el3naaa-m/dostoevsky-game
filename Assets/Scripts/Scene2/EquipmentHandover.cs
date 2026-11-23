@@ -12,12 +12,12 @@ namespace NightChase.Station
         int count;
 
         public override string Prompt(Scene2FlowManager flow) =>
-            flow.State == Scene2FlowManager.Stage.HandoverEquipment ? "E — сдать снаряжение" : "";
+            flow.State == Scene2FlowManager.Stage.HandoverEquipment ? "E — сдать снаряжение сотруднику архива" : "";
 
         public override void Use(Scene2FlowManager flow)
         {
             if (string.IsNullOrEmpty(Prompt(flow))) return;
-            flow.OpenPanel("Отдел кадров", $"Сдано {count}/3");
+            flow.OpenPanel("Сотрудник архива", $"Сдано {count}/3");
             for (int i = 0; i < Ids.Length; i++)
             {
                 int index = i;
@@ -36,4 +36,4 @@ namespace NightChase.Station
         }
     }
 }
-// На окошко кадров, добавьте Collider; On Complete — дополнительное событие.
+// На сотрудника архива с коллайдером. On Complete — дополнительное событие.

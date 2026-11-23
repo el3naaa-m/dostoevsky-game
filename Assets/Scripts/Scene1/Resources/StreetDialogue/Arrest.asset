@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_Script: {fileID: 11500000, guid: 058c568ea472e2241a4bd7edf1d50fce, type: 3}
+  m_Name: Arrest
+  m_EditorClassIdentifier:
+  lines:
+  - speaker: "Напарник"
+    text: "Ну вот, наконец-то. Нужно доставить его в участок. Там с ним разберутся."
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 4.6
+  - speaker: "Преступник"
+    text: "Да вы серьёзно?! Вы вообще понимаете, с кем связываетесь?"
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 3.8
+  - speaker: "Напарник"
+    text: "Помолчи. Всё расскажешь уже в участке."
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 2.9
+  - speaker: "Преступник"
+    text: "Послушайте... Может, мы просто договоримся? Вам ведь тоже не хочется тратить на это всю ночь."
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 5.5
+  - speaker: "Главный герой"
+    text: "Хватит. Поехали, разговор продолжим в участке."
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 3.2
+  - speaker: "Напарник"
+    text: "Ладно. Пора возвращаться."
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 2.4
+  - speaker: "Напарник"
+    text: "И держи блокнот. Ты его обронил."
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 2.8
+  - speaker: "Главный герой"
+    text: "Спасибо. Думал, потерял его."
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 2.4

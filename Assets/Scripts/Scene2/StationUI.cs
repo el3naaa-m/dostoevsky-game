@@ -24,18 +24,23 @@ namespace NightChase.Station
         RectTransform dialogueOptions;
         public bool Modal => panel.gameObject.activeSelf || dialogueStrip.gameObject.activeSelf;
 
-        public void Build()
+        public void Build(bool linear = false)
         {
             font = TMP_FontAsset.CreateFontAsset(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
-            canvas = Rect(transform, "Station Canvas", Vector2.zero, Vector2.zero);
-            var view = canvas.gameObject.AddComponent<Canvas>();
+            var view = GetComponent<Canvas>();
+            if (view) canvas = (RectTransform)transform;
+            else
+            {
+                canvas = Rect(transform, "Station Canvas", Vector2.zero, Vector2.zero);
+                view = canvas.gameObject.AddComponent<Canvas>();
+            }
             view.renderMode = RenderMode.ScreenSpaceOverlay;
             view.sortingOrder = 120;
             var scale = canvas.gameObject.AddComponent<CanvasScaler>();
             scale.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scale.referenceResolution = new Vector2(1280, 720);
-            canvas.gameObject.AddComponent<GraphicRaycaster>();
-            if (!FindAnyObjectByType<EventSystem>())
+            if (!linear) canvas.gameObject.AddComponent<GraphicRaycaster>();
+            if (!linear && !FindAnyObjectByType<EventSystem>())
             {
                 var events = new GameObject("Station Events", typeof(EventSystem));
                 events.transform.SetParent(transform, false);
@@ -43,6 +48,7 @@ namespace NightChase.Station
             }
             Objective = Text(canvas, "Задача", new Vector2(0, 299), new Vector2(1150, 50), 24);
             Prompt = Text(canvas, "", new Vector2(0, -220), new Vector2(930, 56), 26);
+            if (linear) { Objective.gameObject.SetActive(false); Prompt.gameObject.SetActive(false); }
             panel = Rect(canvas, "Station panel", Vector2.zero, new Vector2(880, 500));
             panel.gameObject.AddComponent<Image>().color = new Color(.065f, .075f, .09f, .97f);
             header = Text(panel, "", new Vector2(0, 205), new Vector2(810, 45), 30);
@@ -79,7 +85,7 @@ namespace NightChase.Station
             dialogueSpeaker = DialogueLabel("", new Vector2(.025f,.68f), new Vector2(.94f,.95f), 24, TextAlignmentOptions.Left);
             dialogueLine = DialogueLabel("", new Vector2(.025f,.25f), new Vector2(.965f,.69f), 25, TextAlignmentOptions.MidlineLeft);
             dialogueSpeaker.color = new Color(.91f,.78f,.55f);
-            dialogueNext = DialogueLabel("► [Пробел] Далее", new Vector2(.55f,.025f), new Vector2(.965f,.24f), 20, TextAlignmentOptions.MidlineRight);
+            dialogueNext = DialogueLabel("[Пробел] Далее", new Vector2(.55f,.025f), new Vector2(.965f,.24f), 20, TextAlignmentOptions.MidlineRight);
             var cover = Rect(canvas, "Fade", Vector2.zero, Vector2.zero);
             cover.anchorMin = Vector2.zero;
             cover.anchorMax = Vector2.one;

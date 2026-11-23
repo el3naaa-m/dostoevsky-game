@@ -1,4 +1,5 @@
 using System.Collections;
+using NightChase.Station;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.SceneManagement;
@@ -55,7 +56,7 @@ namespace NightChase
         ChaseRunner suspect;
         ChaseObstacleCourse obstacles;
         bool chaseActive;
-        string dialogue;
+        DialogueSystem dialogue;
         GUIStyle label;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -139,9 +140,9 @@ namespace NightChase
             }
             yield return new WaitForSeconds(startDelay);
 
-            dialogue = "Сильно же тебя приложило";
-            yield return new WaitForSeconds(startDelay);
-            dialogue = null;
+            yield return Speak("Wake");
+            player.EndDialogueLook();
+            player.enabled = false;
             if (partner) partner.Reach(eyes);
 
             var pronePosition = eyes.localPosition;
@@ -157,17 +158,14 @@ namespace NightChase
             }
 
             if (partner) partner.Reach(null);
-            dialogue = "Давай, что ты там мнёшься, сейчас упустим!";
-            yield return new WaitForSeconds(startDelay);
+            yield return Speak("GetUp");
             if (!navigation.valid)
             {
                 ReleaseControls();
-                dialogue = null;
                 yield break;
             }
 
-            dialogue = "Вон тот в синей кофте, давай ты за ним, а я попробую его перехватить с другой стороны!";
-            yield return new WaitForSeconds(startDelay);
+            yield return Speak("Pursuit");
             ReleaseControls();
             if (partner) partner.Follow(partnerWaypoints, 5.1f);
             if (suspect && suspectWaypoints.Length > 0)
@@ -180,8 +178,6 @@ namespace NightChase
                 suspect.Follow(suspectWaypoints, suspectRunSpeed);
                 chaseActive = true;
             }
-            yield return new WaitForSeconds(.45f);
-            dialogue = null;
 
             if (!partner) yield break;
             yield return new WaitUntil(() => !partner.Moving);
@@ -190,13 +186,27 @@ namespace NightChase
             partner.gameObject.SetActive(false);
         }
 
+        IEnumerator Speak(string assetName)
+        {
+            if (!dialogue) dialogue = DialogueSystem.CreateLinear(gameObject);
+            // Существующий сценарий подъёма и погони продолжится после завершения реплики.
+            var data = Resources.Load<DialogueData>("StreetDialogue/" + assetName);
+            if (!data) { Debug.LogError($"Не найден диалог улицы: {assetName}.", this); yield break; }
+            player.BeginDialogueLook();
+            bool finished = false;
+            System.Action complete = () => finished = true;
+            dialogue.OnDialogueEnd += complete;
+            dialogue.Play(data);
+            try { while (!finished && dialogue.Active) yield return null; }
+            finally { dialogue.OnDialogueEnd -= complete; }
+        }
+
         void Update()
         {
             if (!chaseActive || !suspect || !obstacles.AtFinish(suspect.transform.position) || !suspect.Arrived)
                 return;
 
             chaseActive = false;
-            dialogue = null;
             if (obstacles) obstacles.EndTutorial();
             var fight = GetComponent<ChaseFight>();
             if (!fight) fight = gameObject.AddComponent<ChaseFight>();
@@ -207,8 +217,12 @@ namespace NightChase
         {
             if (!controlsLocked) return;
             controlsLocked = false;
-            if (eyes) eyes.SetLocalPositionAndRotation(standingPosition, standingRotation);
-            if (player) player.enabled = true;
+            if (eyes) eyes.localPosition = standingPosition;
+            if (player)
+            {
+                player.EndDialogueLook();
+                player.enabled = true;
+            }
         }
 
         static float FlatDistance(Vector3 a, Vector3 b)
@@ -221,7 +235,7 @@ namespace NightChase
         {
             bool fallingBehind = chaseActive && suspect &&
                 FlatDistance(player.transform.position, suspect.transform.position) > warningDistance;
-            if (string.IsNullOrEmpty(dialogue) && !fallingBehind) return;
+            if (!fallingBehind) return;
             label ??= new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
@@ -231,13 +245,6 @@ namespace NightChase
             label.fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * .027f), 15, 38);
             label.normal.textColor = Color.white;
 
-            float width = Screen.width * .74f;
-            if (!string.IsNullOrEmpty(dialogue))
-            {
-                var box = new Rect((Screen.width - width) / 2, Screen.height * .78f, width, Screen.height * .14f);
-                GUI.Box(box, GUIContent.none);
-                GUI.Label(new Rect(box.x + 12, box.y, box.width - 24, box.height), dialogue, label);
-            }
             if (fallingBehind)
             {
                 var box = new Rect(Screen.width * .38f, Screen.height * .08f,

@@ -6,16 +6,15 @@ namespace NightChase.Station
 {
     public sealed class SuspensionSequence : MonoBehaviour
     {
-        internal IEnumerator Run(Scene2FlowManager flow, DialogueData lines, NavMeshAgent chief, Transform exit)
+        internal IEnumerator Run(Scene2FlowManager flow, DialogueData lines, NavMeshAgent chief, Transform[] officeRoute)
         {
             bool delivered = false;
             flow.Dialogue.Play(lines, () => delivered = true);
             yield return new WaitUntil(() => delivered);
-            if (chief && chief.isOnNavMesh && exit &&
-                NavMesh.SamplePosition(exit.position, out var target, 1, chief.areaMask))
-                {
-                chief.isStopped = false;
-                chief.SetDestination(target.position);
+            if (chief)
+            {
+                var departure = gameObject.AddComponent<EscortSystem>();
+                departure.Begin(chief, null, null, officeRoute);
             }
             flow.SetStage(Scene2FlowManager.Stage.HandoverEquipment);
         }

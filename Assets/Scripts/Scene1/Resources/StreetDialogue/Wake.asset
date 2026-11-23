@@ -1,0 +1,16 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_Script: {fileID: 11500000, guid: 058c568ea472e2241a4bd7edf1d50fce, type: 3}
+  m_Name: Wake
+  m_EditorClassIdentifier:
+  lines:
+  - speaker: "Напарник"
+    text: "Сильно же тебя приложило"
+    eventId:
+    portrait: {fileID: 0}
+    autoAdvanceSeconds: 2.6

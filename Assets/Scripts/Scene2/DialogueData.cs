@@ -20,8 +20,9 @@ namespace NightChase.Station
             public string eventId;
             public Sprite portrait;
             public Choice[] choices;
+            [Min(0)] public float autoAdvanceSeconds;
             public Line(string speaker, string text, string eventId = null)
-            { this.speaker = speaker; this.text = text; this.eventId = eventId; portrait = null; choices = null; }
+            { this.speaker = speaker; this.text = text; this.eventId = eventId; portrait = null; choices = null; autoAdvanceSeconds = 0; }
         }
 
         public Line[] lines;

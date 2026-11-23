@@ -11,12 +11,35 @@ namespace NightChase.Station
         [SerializeField] UnityEngine.UI.Image defaultPortrait;
         public event Action OnDialogueEnd;
         Scene2FlowManager flow;
+        StationUI view;
+        bool linear;
+        float elapsed;
+        internal int CurrentIndex => index;
+
+        // Оба режима используют один Canvas. Улица сохраняет собственные блокировки камеры и игрока.
+        internal static StationUI CreateView(Transform parent, bool linear = false)
+        {
+            var template = Resources.Load<GameObject>("SharedDialogueCanvas");
+            var view = template ? Instantiate(template, parent, false).GetComponent<StationUI>()
+                : new GameObject("Dialogue Canvas").AddComponent<StationUI>();
+            if (!view.transform.parent) view.transform.SetParent(parent, false);
+            view.Build(linear);
+            return view;
+        }
+
+        internal static DialogueSystem CreateLinear(GameObject owner)
+        {
+            var system = owner.AddComponent<DialogueSystem>();
+            system.linear = true;
+            system.view = CreateView(owner.transform, true);
+            return system;
+        }
         DialogueData dialogue;
         int index, shownFrame;
         Action finished;
         public bool Active => dialogue;
 
-        internal void Bind(Scene2FlowManager manager) => flow = manager;
+        internal void Bind(Scene2FlowManager manager) { flow = manager; view = manager.UI; }
 
         public void Play(DialogueData data, Action onEnd = null)
         {
@@ -34,22 +57,29 @@ namespace NightChase.Station
 
         void Update()
         {
-            if (Active && Keyboard.current?.spaceKey.wasPressedThisFrame == true) Next();
+            if (!Active) return;
+            var keyboard = Keyboard.current;
+            if (keyboard?.spaceKey.wasPressedThisFrame == true) { Next(); return; }
+            float duration = dialogue.lines[index].autoAdvanceSeconds;
+            if (!linear || duration <= 0 || shownFrame == Time.frameCount) return;
+            elapsed += Time.unscaledDeltaTime * (keyboard?.shiftKey.isPressed == true ? 3f : 1f);
+            if (elapsed >= duration) Next();
         }
 
         void Show()
         {
             var line = dialogue.lines[index];
             shownFrame = Time.frameCount;
-            flow.Lock(true);
-            flow.UI.ShowDialogue(line.speaker, line.text, line.portrait ? line.portrait : defaultPortrait ? defaultPortrait.sprite : null,
-                line.choices, SelectChoice);
+            elapsed = 0;
+            if (flow) flow.Lock(true);
+            view.ShowDialogue(line.speaker, line.text, line.portrait ? line.portrait : defaultPortrait ? defaultPortrait.sprite : null,
+                linear ? null : line.choices, SelectChoice);
         }
 
         public void Next()
         {
             if (!Active || shownFrame == Time.frameCount) return;
-            if (dialogue.lines[index].choices is { Length: > 0 }) return;
+            if (!linear && dialogue.lines[index].choices is { Length: > 0 }) return;
             Advance(index + 1);
         }
 
@@ -73,7 +103,8 @@ namespace NightChase.Station
             if (!string.IsNullOrEmpty(cue)) onLineEvent.Invoke(cue);
             if (target >= 0 && target < dialogue.lines.Length) { index = target; Show(); return; }
             dialogue = null;
-            flow.ClosePanel();
+            if (flow) flow.ClosePanel();
+            else view.Close();
             var callback = finished;
             finished = null;
             callback?.Invoke();

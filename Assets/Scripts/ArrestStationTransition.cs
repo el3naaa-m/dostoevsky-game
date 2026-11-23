@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using NightChase.Station;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -11,20 +12,9 @@ namespace NightChase
         const string Station = "Assets/_Project/Scenes/PoliceStation.unity";
         const float FadeSeconds = 2f;
 
-        static readonly (string speaker, string line, float duration)[] Lines =
-        {
-            ("Напарник", "Ну вот, наконец-то. Нужно доставить его в участок. Там с ним разберутся", 4.6f),
-            ("Преступник", "Да вы серьёзно?! Вы вообще понимаете, с кем связываетесь?", 3.8f),
-            ("Напарник", "Помолчи. Всё расскажешь уже в участке", 2.9f),
-            ("Преступник", "Послушайте... Может, мы просто договоримся? Вам ведь тоже не хочется тратить на это всю ночь", 5.5f),
-            ("Главный герой", "Хватит. Поехали, разговор продолжим в участке", 3.2f),
-            ("Напарник", "Ладно. Пора возвращаться", 2.4f)
-        };
-
         FirstPersonController arrivingPlayer;
         bool arrivingWasEnabled;
-        CanvasGroup subtitle;
-        Text speakerLabel, lineLabel;
+        DialogueSystem dialogue;
         Image curtain;
 
         internal static void Begin(FirstPersonController player, Transform eyes, ChaseRunner suspect, ChaseRunner partner)
@@ -58,23 +48,22 @@ namespace NightChase
             }
             eyes.SetPositionAndRotation(cameraDestination, Quaternion.LookRotation(stageCenter-cameraDestination));
 
-            for (int index = 0; index < Lines.Length; index++)
+            player.BeginDialogueLook(pinCamera: true);
+            dialogue = DialogueSystem.CreateLinear(gameObject);
+            var conversation = Resources.Load<DialogueData>("StreetDialogue/Arrest");
+            if (!conversation) Debug.LogError("Не найден диалог StreetDialogue/Arrest.", this);
+            bool finished = false;
+            dialogue.Play(conversation, () => finished = true);
+            while (!finished)
             {
-                var entry = Lines[index];
-                speakerLabel.text = entry.speaker;
-                lineLabel.text = entry.line;
-                for (float elapsed = 0; elapsed < entry.duration; elapsed += Time.unscaledDeltaTime)
-                {
-                    subtitle.alpha = Mathf.SmoothStep(0, 1, Mathf.Min(elapsed/.25f, (entry.duration-elapsed)/.27f));
-                    LookAtSpeaker(player.transform, suspect, partner, index);
-                    yield return null;
-                }
-                subtitle.alpha = 0;
-                yield return new WaitForSecondsRealtime(.23f);
+                LookAtSpeaker(player.transform, suspect, partner, dialogue.CurrentIndex);
+                yield return null;
             }
 
             yield return new WaitForSecondsRealtime(.62f);
             yield return Fade(0, 1, FadeSeconds);
+            player.EndDialogueLook();
+            player.enabled = false;
             var operation = RequestStation();
             if (operation != null)
             {
@@ -97,10 +86,12 @@ namespace NightChase
                     eyes.localRotation = restRotation;
                 }
                 yield return Fade(1, 0, .65f);
-                if (player) Resume(player);
-                speakerLabel.text = "";
-                lineLabel.text = "Не удалось загрузить полицейский участок.";
-                subtitle.alpha = 1;
+                if (player)
+                {
+                    player.BeginDialogueLook();
+                    player.EndDialogueLook();
+                }
+                dialogue.Play(DialogueData.From(new DialogueData.Line("", "Не удалось загрузить полицейский участок.")));
                 yield return new WaitForSecondsRealtime(2.7f);
             }
             Destroy(gameObject);
@@ -199,37 +190,10 @@ namespace NightChase
             scaler.referenceResolution = new Vector2(1920,1080);
             scaler.matchWidthOrHeight = .5f;
 
-            var block = Rect(overlay.transform,"Subtitles",new Vector2(.12f,0),new Vector2(.88f,0),
-                new Vector2(0,55),new Vector2(0,203));
-            subtitle = block.gameObject.AddComponent<CanvasGroup>();
-            subtitle.alpha = 0;
-            var background = block.gameObject.AddComponent<Image>();
-            background.color = new Color(.025f,.029f,.035f,.76f);
-            background.raycastTarget = false;
-            speakerLabel = Label(block, "Speaker", new Vector2(25,100), new Vector2(-25,139), 25,
-                new Color(.88f,.76f,.56f), FontStyle.Bold);
-            lineLabel = Label(block, "Dialogue", new Vector2(25,10), new Vector2(-25,99), 34, Color.white, FontStyle.Normal);
             curtain = Rect(overlay.transform,"Black fade",Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero)
                 .gameObject.AddComponent<Image>();
             curtain.color = Color.clear;
             curtain.raycastTarget = false;
-        }
-
-        static Text Label(Transform parent,string name,Vector2 min,Vector2 max,int size,Color color,FontStyle style)
-        {
-            var label = Rect(parent,name,Vector2.zero,Vector2.right,min,max).gameObject.AddComponent<Text>();
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = size;
-            label.fontStyle = style;
-            label.alignment = TextAnchor.MiddleCenter;
-            label.horizontalOverflow = HorizontalWrapMode.Wrap;
-            label.verticalOverflow = VerticalWrapMode.Truncate;
-            label.resizeTextForBestFit = true;
-            label.resizeTextMinSize = 20;
-            label.resizeTextMaxSize = size;
-            label.color = color;
-            label.raycastTarget = false;
-            return label;
         }
 
         static RectTransform Rect(Transform parent,string name,Vector2 minAnchor,Vector2 maxAnchor,Vector2 min,Vector2 max)
