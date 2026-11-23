@@ -29,7 +29,8 @@ namespace NightChase.Station
             flow.Lock(true);
             flow.Audio.PlayOneShot(flow.Audio.paper);
             Inspecting = true;
-            ShowBoard(flow, true);
+            if (!TryGetComponent<CourtCaseBoard>(out var board)) board = gameObject.AddComponent<CourtCaseBoard>();
+            board.Show(flow, flow.ClosePanel, onMatch: () => CollectStoryDocument(flow));
         }
 
         void ShowBoard(Scene2FlowManager flow, bool zoom = false)
@@ -71,6 +72,7 @@ namespace NightChase.Station
                     if (!TryGetComponent<EvidenceTimeline>(out var timeline)) timeline = gameObject.AddComponent<EvidenceTimeline>();
                     timeline.Show(flow,() => ShowBoard(flow));
                 });
+
             if (zoom) ui.Reveal(board);
         }
 
@@ -196,6 +198,14 @@ namespace NightChase.Station
                 flow.CheckEvidence();
             }
             ShowBoard(flow);
+        }
+
+        void CollectStoryDocument(Scene2FlowManager flow)
+        {
+            if (flow.State != Scene2FlowManager.Stage.SearchPuzzle || !evidence || !flow.Inventory.Has("Knife")) return;
+            if (!flow.Inventory.Add(evidence)) return;
+            flow.Audio.PlayOneShot(flow.Audio.pickup);
+            flow.CheckEvidence();
         }
 
         internal void Close()
