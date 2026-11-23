@@ -8,7 +8,7 @@ namespace NightChase.Station
         bool unrestricted;
         internal void Bind(Item value, bool available = false) { item = value; unrestricted = available; }
         public override string Prompt(Scene2FlowManager flow) =>
-            item && (unrestricted || flow.State == Scene2FlowManager.Stage.SearchPuzzle) ? $"E — взять: {item.displayName}" : "";
+            flow.InvestigationUnlocked && item && (unrestricted || flow.State == Scene2FlowManager.Stage.SearchPuzzle) ? $"E — взять: {item.displayName}" : "";
 
         public override void Use(Scene2FlowManager flow)
         {

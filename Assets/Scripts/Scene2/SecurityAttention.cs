@@ -103,15 +103,13 @@ namespace NightChase.Station
 
         Transform[] MakeTour()
         {
-            var route = station.ChiefOfficeRoute;
-            var hall = route[route.Length - 3];
+            var home = Waypoint("Chief office", station.Chief.transform.position);
             Vector3 board = station.Board.transform.position;
-            Vector3 approach = Vector3.MoveTowards(board, hall.position, 1.7f);
-            approach.y = hall.position.y;
-            var nearBoard = Waypoint("Проход у доски", approach);
-            var aisle = Waypoint("Зал следователей", Vector3.Lerp(hall.position, approach, .53f));
-            returnRoute = new[] { aisle, hall, route[^2], route[^1] };
-            return new[] { route[^2], hall, aisle, nearBoard };
+            Vector3 approach = Vector3.MoveTowards(board, home.position, 1.7f);
+            approach.y = home.position.y;
+            var nearBoard = Waypoint("Board aisle", approach);
+            returnRoute = new[] { home };
+            return new[] { nearBoard };
         }
 
         Transform Waypoint(string label, Vector3 point)

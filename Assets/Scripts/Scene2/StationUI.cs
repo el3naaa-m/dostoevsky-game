@@ -11,6 +11,7 @@ namespace NightChase.Station
     sealed class StationUI : MonoBehaviour
     {
         public TextMeshProUGUI Objective { get; private set; }
+        internal TextMeshProUGUI EvidenceProgress { get; private set; }
         public TextMeshProUGUI Prompt { get; private set; }
         public CanvasGroup Fade { get; private set; }
         RectTransform canvas, panel, buttons;
@@ -50,6 +51,11 @@ namespace NightChase.Station
             Objective = Text(canvas, "Задача", new Vector2(0, 299), new Vector2(1150, 50), 24);
             Prompt = Text(canvas, "", new Vector2(0, -220), new Vector2(930, 56), 26);
             if (linear) { Objective.gameObject.SetActive(false); Prompt.gameObject.SetActive(false); }
+            else
+            {
+                EvidenceProgress = Text(canvas, "Улики 0/3   ·   J — журнал улик", new Vector2(0,259), new Vector2(725,33), 20);
+                EvidenceProgress.gameObject.SetActive(false);
+            }
             panel = Rect(canvas, "Station panel", Vector2.zero, new Vector2(880, 500));
             panel.gameObject.AddComponent<Image>().color = new Color(.065f, .075f, .09f, .97f);
             header = Text(panel, "", new Vector2(0, 205), new Vector2(810, 45), 30);

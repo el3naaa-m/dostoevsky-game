@@ -263,7 +263,7 @@ namespace NightChase.Station
             completed = true;
             if (ledger) ledger.text = HeroSurname + "\nКомплект принят";
             flow.ClosePanel();
-            flow.SetStage(Scene2FlowManager.Stage.NoticeBoard);
+            flow.BeginInvestigationAfterHandover();
             flow.Notify("Дежурная: принято. Можете проходить.",4);
             onComplete.Invoke();
         }

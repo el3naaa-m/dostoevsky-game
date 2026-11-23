@@ -10,10 +10,11 @@ namespace NightChase.Station
         const string TapeDescription = "В коробке лежит прозрачный пакет. На бирке написано: «Вещдок № 44-Б. Изъято у информатора».";
         bool EvidenceRack => gameObject.name == "Rack (10)";
 
-        public override string Prompt(Scene2FlowManager flow) => "E — осмотреть коробки";
+        public override string Prompt(Scene2FlowManager flow) => flow.InvestigationUnlocked ? "E — осмотреть коробки" : "";
 
         public override void Use(Scene2FlowManager flow)
         {
+            if (!flow.InvestigationUnlocked) return;
             flow.Lock(true);
             ShowRack(flow);
         }

@@ -29,12 +29,12 @@ namespace NightChase.Station
         AudioSource sound;
         AudioClip hiss, click, chair;
 
-        public override string Prompt(Scene2FlowManager flow) => inserted ? "E — Воспроизвести кассету 44-Б"
+        public override string Prompt(Scene2FlowManager flow) => !flow.InvestigationUnlocked ? "" : inserted ? "E — Воспроизвести кассету 44-Б"
             : flow.Inventory.Has(TapeId) ? "E — Вставить кассету 44-Б" : "E — Осмотреть видеомагнитофон";
 
         public override void Use(Scene2FlowManager flow)
         {
-            if (playback != null) return;
+            if (!flow.InvestigationUnlocked || playback != null) return;
             bool first = !inserted;
             if (first && !flow.Inventory.Remove(TapeId))
             {

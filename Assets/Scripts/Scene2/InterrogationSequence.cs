@@ -1,6 +1,6 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.AI;
+
 using UnityEngine.Animations;
 using UnityEngine.Playables;
 
@@ -8,71 +8,49 @@ namespace NightChase.Station
 {
     public sealed class InterrogationSequence : MonoBehaviour
     {
-        [SerializeField] ChairInteraction chiefChair, playerChair;
-        [SerializeField] Transform chiefSeat, playerSeat, chiefOfficeSeat;
+        [SerializeField] ChairInteraction playerChair;
+        [SerializeField] Transform playerSeat;
         // Опционально: назначьте Humanoid-клип Stand To Sit без Loop Time.
-        // Можно указать Animator шефа вручную. Playables сохраняет последний кадр.
-        [SerializeField] Animator chiefAnimator, playerAnimator;
+        // Можно указать Animator героя вручную. Playables сохраняет последний кадр.
+        [SerializeField] Animator playerAnimator;
         [SerializeField] AnimationClip standToSit;
         PlayableGraph graph;
-        Vector3 chiefGoal, playerGoal, chiefRest, playerRest, eyeRest;
-        Quaternion playerRotation, eyeRotation, playerFacing, chiefFacing;
-        bool chiefAgentEnabled, controllerEnabled;
+        Vector3 playerGoal, playerRest, eyeRest;
+        Quaternion playerRotation, eyeRotation, playerFacing;
+        bool controllerEnabled;
         CharacterController controller;
-        public bool ChiefSeated { get; private set; }
+        public bool PlayerSeatReady { get; private set; }
         internal Vector3 PlayerSeatPosition => playerGoal;
 
-        internal IEnumerator SeatChief(StationLayout layout)
+        internal void PrepareInterview(StationLayout layout)
         {
             var chief = layout.Chief;
-            chiefChair = Resolve(chiefChair, "ChairA (31)");
             playerChair = Resolve(playerChair, "ChairA (32)");
-            chiefRest = Position(chiefSeat, chiefChair, new Vector3(-5.33f, 0, 15.56f));
-            playerRest = Position(playerSeat, playerChair, new Vector3(-6.41f, 0, 15.53f));
-            var backward = (chiefRest - playerRest).normalized;
-            chiefFacing = chiefSeat ? chiefSeat.rotation : Quaternion.LookRotation(-backward);
-            playerFacing = playerSeat ? playerSeat.rotation : Quaternion.LookRotation(backward);
-            if (chiefChair) chiefChair.Bind(backward);
-            if (playerChair) playerChair.Bind(-backward);
-            chiefGoal = chiefChair ? chiefChair.PulledPosition(chiefRest) : chiefRest + backward * .4f;
-            playerGoal = playerChair ? playerChair.PulledPosition(playerRest) : playerRest - backward * .4f;
-            chiefAgentEnabled = chief.enabled;
-            if (chief.isOnNavMesh && NavMesh.SamplePosition(chiefGoal, out var hit, .65f, chief.areaMask))
-            {
-                chief.isStopped = false;
-                if (chief.SetDestination(hit.position))
-                {
-                    float deadline = Time.time + 3f;
-                    while (Time.time < deadline && Vector3.Distance(chief.transform.position, hit.position) > .45f)
-                        yield return null;
-                }
-            }
-            chief.enabled = false;
-            layout.SeatingChief = true;
-            var from = chief.transform.position;
-            // Короткая доводка до сиденья после прохода по NavMesh.
-            yield return Move(chief.transform, chiefGoal, chiefFacing, Mathf.Max(.25f, Vector3.Distance(from, chiefGoal) / 1.8f));
-            if (chiefChair) yield return chiefChair.SitDown();
-            if (!chiefAnimator) chiefAnimator = chief.GetComponentInChildren<Animator>();
-            yield return Animate(chiefAnimator, "Chief", chief.transform, chiefGoal, .36f);
-            ChiefSeated = true;
+            Vector3 playerSeatPoint = Position(playerSeat, playerChair, new Vector3(-6.41f,0,15.53f));
+            Vector3 toChief = chief.transform.position - playerSeatPoint;
+            toChief.y = 0;
+            if (toChief.sqrMagnitude < .01f) toChief = Vector3.right;
+            var facing = playerSeat ? playerSeat.forward : toChief.normalized;
+            playerFacing = playerSeat ? playerSeat.rotation : Quaternion.LookRotation(facing);
+            if (playerChair) playerChair.Bind(-facing);
+            playerGoal = playerChair ? playerChair.PulledPosition(playerSeatPoint) : playerSeatPoint - facing*.4f;
+            // Шеф ждёт у стола стоя и остаётся на NavMesh для следующего маршрута.
+            if (chief.isOnNavMesh) chief.isStopped = true;
+            chief.transform.rotation = Quaternion.LookRotation(-toChief);
+            PlaceCup(new Vector3(-5.92f,.78f,15.55f));
+            PlayerSeatReady = true;
         }
-
-        internal IEnumerator SeatChiefInOffice(StationLayout layout)
+        void PlaceCup(Vector3 point)
         {
-            var chief = layout.Chief;
-            var office = layout.ChiefOfficeRoute[layout.ChiefOfficeRoute.Length - 1];
-            if (!chief || !office || Vector3.Distance(chief.transform.position, office.position) > 1.2f)
-                yield break;
-
-            var position = chiefOfficeSeat ? chiefOfficeSeat.position : new Vector3(.91f, 0, -2.46f);
-            var facing = chiefOfficeSeat ? chiefOfficeSeat.rotation : Quaternion.identity;
-            chief.enabled = false;
-            // Используем ту же анимацию, что в допросной, и удерживаем последний кадр.
-            yield return Move(chief.transform, position, facing, .55f);
-            layout.SeatingChief = true;
-            if (!chiefAnimator) chiefAnimator = chief.GetComponentInChildren<Animator>();
-            yield return Animate(chiefAnimator, "Chief office", chief.transform, position, .36f);
+            foreach (var root in gameObject.scene.GetRootGameObjects())
+                foreach (var item in root.GetComponentsInChildren<Transform>())
+                    if (item.name == "CupB (1)")
+                    {
+                        var cup = Instantiate(item.gameObject, point, item.rotation, transform);
+                        cup.name = "Чашка шефа";
+                        foreach (var collider in cup.GetComponentsInChildren<Collider>()) collider.enabled = false;
+                        return;
+                    }
         }
 
         internal IEnumerator SeatPlayer(Scene2FlowManager flow, Transform eyes)
@@ -91,28 +69,6 @@ namespace NightChase.Station
             yield return Animate(playerAnimator, "Player", eyes, eyeRest, .48f, true);
         }
 
-        internal IEnumerator StandChief(StationLayout layout, Transform eyes)
-        {
-            if (graph.IsValid()) graph.Destroy();
-            var chief = layout.Chief;
-            var chiefFrom = chief.transform.position;
-            var lookFrom = eyes.rotation;
-            var lookDirection = chiefGoal + Vector3.up * 1.55f - eyes.position;
-            var lookTo = lookDirection.sqrMagnitude > .001f ? Quaternion.LookRotation(lookDirection) : lookFrom;
-            const float duration = .55f;
-            for (float t = 0; t < duration; t += Time.deltaTime)
-            {
-                float blend = Mathf.SmoothStep(0, 1, t / duration);
-                chief.transform.position = Vector3.Lerp(chiefFrom, chiefGoal, blend);
-                eyes.rotation = Quaternion.Slerp(lookFrom, lookTo, blend);
-                yield return null;
-            }
-            chief.transform.position = chiefGoal;
-            eyes.rotation = lookTo;
-            if (chiefChair) yield return chiefChair.StandUp();
-            ChiefSeated = false;
-        }
-
         internal IEnumerator StandPlayer(Transform player, Transform eyes)
         {
             var eyeFrom = eyes.localPosition;
@@ -129,14 +85,6 @@ namespace NightChase.Station
             eyes.localRotation = eyeRotation;
             if (controller) controller.enabled = controllerEnabled;
             if (playerChair) yield return playerChair.StandUp();
-        }
-
-        internal void ReleaseChief(StationLayout layout)
-        {
-            var chief = layout.Chief;
-            chief.enabled = chiefAgentEnabled;
-            if (chief.enabled && NavMesh.SamplePosition(chiefGoal, out var hit, 1f, chief.areaMask)) chief.Warp(hit.position);
-            layout.SeatingChief = false;
         }
 
         IEnumerator Animate(Animator animator, string track, Transform target, Vector3 origin, float drop, bool local = false)

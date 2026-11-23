@@ -99,7 +99,7 @@ namespace NightChase.Station
             corridorSpoken = true;
             Dialogue.Play(corridor ? corridor : StationDialogue.Corridor(),
                 () => chiefRoute.Begin(layout.Chief, null, Player.transform,
-                    interrogationRoute ? interrogationRoute.Points : layout.Route));
+                    interrogationRoute ? interrogationRoute.Points : layout.Route, movementSpeed: layout.ChiefWalkSpeed));
         }
 
         Transform ChiefDestination
@@ -149,16 +149,26 @@ namespace NightChase.Station
             if (actor) actor.position = destination;
         }
 
+        int displayedEvidence = -1;
+        internal bool InvestigationUnlocked { get; private set; }
+
         void Update()
         {
             if (!ready) return;
+            if (State == Stage.Interrogation && Dialogue.Active) layout.LookAtPlayer(eyes);
+            int count = InvestigationUnlocked ? InvestigationNotes.For(this).FatherCaseCount : -1;
+            if (count != displayedEvidence)
+            {
+                displayedEvidence = count;
+                UI.EvidenceProgress.text = $"Улики {count}/3   ·   J — журнал улик";
+            }
             var key = Keyboard.current;
             if (State == Stage.Escort && chiefRoute.Complete && !UI.Modal &&
                 Vector3.Distance(layout.Chief.transform.position, ChiefDestination.position) <= 1.35f)
             {
                 SetStage(Stage.Interrogation);
                 seating = GetOrAdd<InterrogationSequence>();
-                StartCoroutine(seating.SeatChief(layout));
+                seating.PrepareInterview(layout);
             }
 
             bool notified = Time.unscaledTime < messageUntil;
@@ -178,7 +188,7 @@ namespace NightChase.Station
                 return;
             }
             if (controlsLocked) { Highlight(null); return; }
-            if (State == Stage.Interrogation && seating && seating.ChiefSeated &&
+            if (State == Stage.Interrogation && seating && seating.PlayerSeatReady &&
                 Vector3.Distance(Player.transform.position, seating.PlayerSeatPosition) < 1.45f)
             {
                 Highlight(null);
@@ -186,7 +196,7 @@ namespace NightChase.Station
                 if (key.eKey.wasPressedThisFrame) StartCoroutine(SitForInterview());
                 return;
             }
-            if (key.jKey.wasPressedThisFrame) { InvestigationNotes.For(this).Show(this); return; }
+            if (InvestigationUnlocked && key.jKey.wasPressedThisFrame) { InvestigationNotes.For(this).Show(this); return; }
             if (key.rKey.wasPressedThisFrame) { ShowInventory(); return; }
 
             if (!Physics.Raycast(eyes.position, eyes.forward, out var hit, interactionRange, ~0, QueryTriggerInteraction.Ignore))
@@ -216,7 +226,7 @@ namespace NightChase.Station
             OpenPanel("Инвентарь", Inventory.Items.Any() ? "" : "Пусто");
             UI.ShowItems(Inventory.Items);
             inventoryOpen = true;
-            UI.Button("Журнал улик   [J]", () => GetOrAdd<EvidenceLog>().Show(this));
+            if (InvestigationUnlocked) UI.Button("Журнал улик   [J]", () => InvestigationNotes.For(this).Show(this));
             UI.Button("Закрыть   [R]", ClosePanel);
         }
 
@@ -230,11 +240,27 @@ namespace NightChase.Station
         {
             Lock(true);
             yield return new WaitForSeconds(.65f);
-            yield return seating.StandChief(layout, eyes);
+
             SetStage(Stage.Suspension);
             yield return suspensionSequence.Run(this, suspension ? suspension : StationDialogue.Suspension(),
                 layout, seating, eyes);
             Lock(false);
+        }
+
+        internal void BeginInvestigationAfterHandover()
+        {
+            if (InvestigationUnlocked || State != Stage.HandoverEquipment) return;
+            // Доступ открывается после завершения внутренней реплики, а не в момент списания вещей.
+            var thought = DialogueData.From(new DialogueData.Line("Карамазов", "Я не могу просто оставаться в стороне. Я должен узнать, что происходит"));
+            Dialogue.Play(thought, () =>
+            {
+                InvestigationUnlocked = true;
+                int count = InvestigationNotes.For(this).FatherCaseCount;
+                displayedEvidence = count;
+                UI.EvidenceProgress.text = $"Улики {count}/3   ·   J — журнал улик";
+                UI.EvidenceProgress.gameObject.SetActive(true);
+                SetStage(Stage.NoticeBoard);
+            });
         }
 
         internal void SetStage(Stage next)
@@ -259,15 +285,13 @@ namespace NightChase.Station
 
         string EvidenceObjective()
         {
-            bool record = Inventory.Has("SovietRecord");
             bool clipping = Inventory.Has("BrightonNote");
             bool arrival = Inventory.Has("Immigration");
-            int count = (record ? 1 : 0) + (clipping ? 1 : 0) + (arrival ? 1 : 0);
             string lead;
             if (!clipping) lead = "Осмотрите столы в архиве";
             else if (!arrival) lead = Inventory.Has("Key") ? "Откройте ящик в архиве" : "Обыщите столы рядом с ящиком";
             else lead = Inventory.Has("Knife") ? "Вернитесь к доске в зале следователей" : "Найдите в архиве инструмент для доски";
-            return $"{lead}   ·   Улики {count}/3   ·   J — журнал";
+            return lead;
         }
 
         internal void CheckEvidence()
