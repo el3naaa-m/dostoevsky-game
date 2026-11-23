@@ -55,9 +55,35 @@ namespace NightChase.Station
             {
                 ui.Button(screen,$"Дело отца · № {CaseNumber}",new(.12f,.52f),new(.88f,.69f),() => Read(flow));
                 ui.Button(screen,"Кассета · Показания свидетеля",new(.12f,.36f),new(.88f,.48f),() => Listen(flow));
-                ui.Label(screen,"В папке два листа.",new(.12f,.20f),new(.88f,.32f),26);
+                ui.Button(screen,"Кассета 44-Б · Запись отца",new(.12f,.20f),new(.88f,.32f),() => Listen44B(flow));
+                ui.Label(screen,"В деле отца два листа.",new(.12f,.07f),new(.88f,.16f),26);
             }
             else ui.Label(screen,"В этой ячейке нет нужного дела.",new(.12f,.3f),new(.88f,.62f),30);
+        }
+
+        void Listen44B(Scene2FlowManager flow)
+        {
+            var ui = flow.UI.Workspace;
+            var screen = ui.Page("Кассета 44-Б",() => ShowDrawer(flow,HeroSurname),"К папкам");
+            var notes = InvestigationNotes.For(flow);
+            ui.Label(screen,"Расшифровка\n\n«Кравец сказал, что всё готово к пятнадцатому. Я спросил про слушание. Он велел мне больше не звонить».",
+                new(.11f,.32f),new(.89f,.81f),30);
+            ui.Button(screen,"Отметить расшифровку прочитанной",new(.11f,.13f),new(.59f,.24f),() =>
+            {
+                notes.Tape44BHeard = true;
+                ui.Label(screen,"Содержание кассеты отмечено в журнале.",new(.11f,.02f),new(.89f,.10f),21);
+            });
+            var recording = Resources.Load<AudioClip>("StationEvidence/Tape44B");
+            if (!recording) return;
+            if (!tape) tape = gameObject.AddComponent<AudioSource>();
+            tape.clip = recording;
+            var transport = EvidenceWorkspace.Rect(screen,"Кассета 44-Б",Vector2.zero,Vector2.one);
+            transport.gameObject.AddComponent<StopArchiveTape>().Tape = tape;
+            ui.Button(transport,"Прослушать",new(.64f,.13f),new(.90f,.24f),() =>
+            {
+                tape.Play();
+                notes.Tape44BHeard = true;
+            });
         }
 
         void Listen(Scene2FlowManager flow)
@@ -90,6 +116,7 @@ namespace NightChase.Station
                 if (tape.isPlaying) { tape.Pause(); paused = true; }
                 else if (paused) { tape.UnPause(); paused = false; }
                 else tape.Play();
+
             });
             ui.Button(transport,"−10 секунд",new(.39f,.12f),new(.61f,.23f),() => Seek(-10));
             ui.Button(transport,"+10 секунд",new(.63f,.12f),new(.89f,.23f),() => Seek(10));

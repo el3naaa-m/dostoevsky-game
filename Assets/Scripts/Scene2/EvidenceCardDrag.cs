@@ -10,18 +10,22 @@ namespace NightChase.Station
         Vector2 grabOffset;
         Action<Vector2> save;
         Action inspect;
+        Func<PointerEventData,bool> drop;
+        Vector2 start;
 
-        internal void Bind(RectTransform surface, Action<Vector2> savePosition, Action open)
+        internal void Bind(RectTransform surface, Action<Vector2> savePosition, Action open, Func<PointerEventData,bool> onDrop = null)
         {
             board = surface;
             card = (RectTransform)transform;
             save = savePosition;
             inspect = open;
+            drop = onDrop;
         }
 
         public void OnBeginDrag(PointerEventData eventData)
         {
             if (eventData.button != PointerEventData.InputButton.Left) return;
+            start = card.anchorMin;
             grabOffset = card.anchorMin - Pointer(eventData);
             transform.SetAsLastSibling();
         }
@@ -37,7 +41,15 @@ namespace NightChase.Station
             save(next);
         }
 
-        public void OnEndDrag(PointerEventData eventData) => eventData.eligibleForClick = false;
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            eventData.eligibleForClick = false;
+            if (eventData.button != PointerEventData.InputButton.Left || drop?.Invoke(eventData) != true) return;
+            var size = card.anchorMax - card.anchorMin;
+            card.anchorMin = start;
+            card.anchorMax = start + size;
+            save(start);
+        }
         public void OnPointerClick(PointerEventData eventData)
         {
             if (eventData.button == PointerEventData.InputButton.Left && !eventData.dragging) inspect();
