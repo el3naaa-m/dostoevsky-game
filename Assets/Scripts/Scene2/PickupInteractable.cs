@@ -5,9 +5,10 @@ namespace NightChase.Station
     public sealed class PickupInteractable : StationInteractable
     {
         [SerializeField] Item item;
-        internal void Bind(Item value) => item = value;
+        bool unrestricted;
+        internal void Bind(Item value, bool available = false) { item = value; unrestricted = available; }
         public override string Prompt(Scene2FlowManager flow) =>
-            item && flow.State == Scene2FlowManager.Stage.SearchPuzzle ? $"E — взять: {item.displayName}" : "";
+            item && (unrestricted || flow.State == Scene2FlowManager.Stage.SearchPuzzle) ? $"E — взять: {item.displayName}" : "";
 
         public override void Use(Scene2FlowManager flow)
         {

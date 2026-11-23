@@ -13,7 +13,7 @@ namespace NightChase.Station
         public static DialogueData Interview() => UnityEngine.Resources.Load<DialogueData>("StationInterview");
 
         public static DialogueData Suspension() => DialogueData.From(
-            new("Шеф", "Сдай пистолет, удостоверение и наручники. Архив в конце коридора, дверь справа. У столов тебя ждут"),
+            new("Шеф", "Сдай пистолет, удостоверение и наручники. Архив в конце коридора, дверь справа. Вещи примет дежурная у стойки"),
             new("Шеф", "Все улики, которые у нас есть, уже опечатаны. Если ты сунешься туда — это будет взлом. Я ясно выражаюсь?"));
     }
 }

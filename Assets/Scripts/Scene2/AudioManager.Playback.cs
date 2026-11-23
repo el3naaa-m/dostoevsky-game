@@ -94,7 +94,12 @@ namespace NightChase.Station
             }
         }
 
-        internal void PlayDialogueClick() => PlayOneShot(dialogueClick, .13f);
+        internal bool PlayDialogueClick()
+        {
+            if (!dialogueClick || !effects) return false;
+            PlayOneShot(dialogueClick,.13f);
+            return true;
+        }
 
         internal void PlayHandcuffs() => PlayOneShot(handcuffs, .57f);
 

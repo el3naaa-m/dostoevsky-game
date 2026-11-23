@@ -8,7 +8,7 @@ namespace NightChase.Station
     internal sealed class CourtCaseBoard : MonoBehaviour
     {
         static readonly string[] Titles = { "Групповое фото", "Камера склада № 4", "Вырезка о складе", "Вырезка о суде", "Схема квартала", "Квитанция за фургон" };
-        static readonly string[] Bodies =
+        internal static readonly string[] Bodies =
         {
             "Бруклин, 1999. Отец и трое мужчин у синей двери с цифрой 4. У мужчины справа белая нашивка.",
             "AUG 09 1999 · Склад № 4. Мужчина с белой нашивкой у синей двери. Пометка Миллера: «Сверить фигуру справа на групповом фото».",
@@ -54,10 +54,17 @@ namespace NightChase.Station
             {
                 int cardIndex = i;
                 var card = EvidenceWorkspace.Rect(board,Titles[i],positions[i],positions[i]+CardSize);
-                card.gameObject.AddComponent<Image>().color = new Color(.85f,.78f,.63f);
-                ui.Label(card,Titles[i],new(.045f,.05f),new(.96f,.35f),22).color = Color.black;
-                AddArt(card,i,new(.05f,.35f),new(.95f,.96f));
-                card.gameObject.AddComponent<EvidenceCardDrag>().Bind(board, position =>
+                card.gameObject.AddComponent<Image>().color = new Color(.20f,.18f,.16f);
+                bool hasArt = AddArt(card,i,new(.015f,.025f),new(.985f,.975f));
+                var caption = EvidenceWorkspace.Rect(card,"Подпись",new(.08f,.06f),new(.92f,.30f));
+                var captionBackground = caption.gameObject.AddComponent<Image>();
+                captionBackground.color = new Color(.92f,.92f,.92f,.94f);
+                captionBackground.raycastTarget = false;
+                ui.Label(caption,Titles[i],new(.06f,.08f),new(.94f,.92f),20).color = Color.black;
+                caption.gameObject.SetActive(!hasArt);
+                var drag = card.gameObject.AddComponent<EvidenceCardDrag>();
+                if (hasArt) drag.HoverCaption = caption.gameObject;
+                drag.Bind(board, position =>
                 {
                     positions[cardIndex] = position;
                     DrawThreads();
@@ -111,7 +118,7 @@ namespace NightChase.Station
                     () => Inspect(flow,back,index,!reversed));
         }
 
-        static bool AddArt(RectTransform parent, int index, Vector2 min, Vector2 max)
+        internal static bool AddArt(RectTransform parent, int index, Vector2 min, Vector2 max)
         {
             var texture = Resources.Load<Texture2D>("StationEvidence/CourtCase" + index);
             if (!texture) return false;

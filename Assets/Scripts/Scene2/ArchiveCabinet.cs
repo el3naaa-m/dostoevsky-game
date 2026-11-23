@@ -4,7 +4,7 @@ namespace NightChase.Station
 {
     public sealed class ArchiveCabinet : StationInteractable
     {
-        [SerializeField] string heroSurname = "Достоевский";
+        const string heroSurname = EquipmentHandover.HeroSurname;
         [SerializeField] AudioClip witnessRecording;
         AudioSource tape;
         static readonly string[] OtherNames = { "Волков", "Громов", "Зайцев", "Ковалёв", "Лебедев", "Орлов", "Соколов" };
@@ -21,7 +21,7 @@ namespace NightChase.Station
         {
             var ui = flow.UI.Workspace;
             var screen = ui.Page("Архивный шкаф",flow.ClosePanel);
-            ui.Label(screen,"Найдите ячейку со своей фамилией. На удостоверении: Достоевский.",new(.05f,.79f),new(.95f,.87f),26);
+            ui.Label(screen,"Найдите ячейку со своей фамилией. На удостоверении: " + heroSurname + ".",new(.05f,.79f),new(.95f,.87f),26);
             for (int i = 0; i < 6; i++)
             {
                 string name = i == 2 ? heroSurname : OtherNames[i < 2 ? i : i - 1];
@@ -40,34 +40,8 @@ namespace NightChase.Station
             {
                 ui.Button(screen,"Дело отца · № 94-17",new(.12f,.52f),new(.88f,.69f),() => Read(flow,0));
                 ui.Button(screen,"Кассета · Показания свидетеля",new(.12f,.36f),new(.88f,.48f),() => Listen(flow));
-                ui.Button(screen,"Кассета 44-Б · Запись отца",new(.12f,.20f),new(.88f,.32f),() => Listen44B(flow));
             }
             else ui.Label(screen,"В этой ячейке нет нужного дела.",new(.12f,.3f),new(.88f,.62f),30);
-        }
-
-        void Listen44B(Scene2FlowManager flow)
-        {
-            var ui = flow.UI.Workspace;
-            var screen = ui.Page("Кассета 44-Б",() => ShowDrawer(flow,heroSurname),"К папкам");
-            var notes = InvestigationNotes.For(flow);
-            ui.Label(screen,"Расшифровка\n\n«Кравец сказал, что всё готово к пятнадцатому. Я спросил про слушание. Он велел мне больше не звонить».",
-                new(.11f,.32f),new(.89f,.81f),30);
-            ui.Button(screen,"Отметить расшифровку прочитанной",new(.11f,.13f),new(.59f,.24f),() =>
-            {
-                notes.Tape44BHeard = true;
-                ui.Label(screen,"Содержание кассеты отмечено в журнале.",new(.11f,.02f),new(.89f,.10f),21);
-            });
-            var recording = Resources.Load<AudioClip>("StationEvidence/Tape44B");
-            if (!recording) return;
-            if (!tape) tape = gameObject.AddComponent<AudioSource>();
-            tape.clip = recording;
-            var transport = EvidenceWorkspace.Rect(screen,"Кассета 44-Б",Vector2.zero,Vector2.one);
-            transport.gameObject.AddComponent<StopArchiveTape>().Tape = tape;
-            ui.Button(transport,"Прослушать",new(.64f,.13f),new(.90f,.24f),() =>
-            {
-                tape.Play();
-                notes.Tape44BHeard = true;
-            });
         }
 
         void Listen(Scene2FlowManager flow)

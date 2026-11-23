@@ -14,6 +14,8 @@ namespace NightChase.Station
         StationUI view;
         bool linear;
         float elapsed;
+        bool pendingNext;
+        AudioSource fallbackAudio;
         internal int CurrentIndex => index;
 
         // Оба режима используют один Canvas. Улица сохраняет собственные блокировки камеры и игрока.
@@ -49,6 +51,7 @@ namespace NightChase.Station
                 onEnd?.Invoke();
                 return;
             }
+            pendingNext = false;
             dialogue = data;
             index = 0;
             finished = onEnd;
@@ -59,7 +62,13 @@ namespace NightChase.Station
         {
             if (!Active) return;
             var keyboard = Keyboard.current;
-            if (keyboard?.spaceKey.wasPressedThisFrame == true) { Next(); return; }
+            if (keyboard?.spaceKey.wasPressedThisFrame == true) pendingNext = true;
+            if (pendingNext && shownFrame != Time.frameCount)
+            {
+                pendingNext = false;
+                Next();
+                return;
+            }
             float duration = dialogue.lines[index].autoAdvanceSeconds;
             if (!linear || duration <= 0 || shownFrame == Time.frameCount) return;
             elapsed += Time.unscaledDeltaTime * (keyboard?.shiftKey.isPressed == true ? 3f : 1f);
@@ -82,8 +91,22 @@ namespace NightChase.Station
         {
             if (!Active || shownFrame == Time.frameCount) return;
             if (!linear && dialogue.lines[index].choices is { Length: > 0 }) return;
-            if (userInput) AudioManager.Instance?.PlayDialogueClick();
+            if (userInput || linear) PlayPageClick();
             Advance(index + 1);
+        }
+
+        void PlayPageClick()
+        {
+            if (AudioManager.Instance && AudioManager.Instance.PlayDialogueClick()) return;
+            var clip = Resources.Load<AudioClip>("StreetDialogueClick");
+            if (!clip) return;
+            if (!fallbackAudio)
+            {
+                fallbackAudio = gameObject.AddComponent<AudioSource>();
+                fallbackAudio.playOnAwake = false;
+                fallbackAudio.spatialBlend = 0;
+            }
+            fallbackAudio.PlayOneShot(clip,.13f);
         }
 
         void SelectChoice(int selected)

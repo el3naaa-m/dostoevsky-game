@@ -20,6 +20,7 @@ namespace NightChase.Station
         internal Transform CellDoor { get; private set; }
         internal Transform[] ChiefOfficeRoute { get; private set; }
         internal NoticeBoard Board { get; private set; }
+        internal EquipmentHandover Handover { get; private set; }
         internal Transform SearchStart { get; private set; }
         internal TriggerZone Corridor { get; private set; }
         internal TriggerZone Exit { get; private set; }
@@ -35,9 +36,16 @@ namespace NightChase.Station
             }
             if (data) navigation = NavMesh.AddNavMeshData(data);
 
-            Partner = Actor("Partner", "Ch33", new Vector3(-11.35f, 0, 18.7f), Color.white);
+            gameObject.AddComponent<StationStairMaterials>().Repair();
+            Partner = Actor("Partner", "Ch33", new Vector3(-11.05f, 0, 15.75f), Color.white);
             Suspect = Actor("Suspect", "Ch08", new Vector3(-9.8f, 0, 18.4f), new Color(.12f, .28f, .66f), true);
-            Chief = Actor("Chief", "Ch31", new Vector3(-10.5f, 0, 16.05f), new Color(.12f, .16f, .22f));
+            Chief = Actor("Chief", "Ch31", new Vector3(-10.15f, 0, 14.25f), new Color(.12f, .16f, .22f));
+            foreach (var actor in new[] { Partner, Chief })
+            {
+                Vector3 facing = flow.Player.transform.position - actor.transform.position;
+                facing.y = 0;
+                if (facing.sqrMagnitude > .01f) actor.transform.rotation = Quaternion.LookRotation(facing);
+            }
             Route = new[]
             {
                 Marker("CorridorPoint1", new Vector3(-10.35f, 0, 13f)),
@@ -100,15 +108,16 @@ namespace NightChase.Station
             Corridor = Zone("Station_Corridor", new Vector3(-10.5f, .9f, 16.25f), new Vector3(3.4f, 2.2f, 1.6f), flow.CorridorReached);
             Exit = Zone("Station_Exit", new Vector3(-20.4f, .9f, 19.5f), new Vector3(1.5f, 2.2f, 2.5f), exit.Enter);
             // Сотрудник ждёт за правой дверью в конце коридора, у столов архива.
-            var clerk = Actor("ArchiveClerk", "Ch06", new Vector3(-13.9f, 0, 3.85f), new Color(.32f,.35f,.4f));
+            var clerk = Actor("ArchiveClerk", "Ch07", new Vector3(-13.9f, 0, 3.85f), new Color(.32f,.35f,.4f));
             clerk.enabled = false;
-            clerk.transform.rotation = Quaternion.Euler(0, 180, 0);
+            clerk.transform.rotation = Quaternion.identity;
             var clerkTarget = new GameObject("Приём снаряжения");
             clerkTarget.transform.SetParent(clerk.transform, false);
             var clerkCollider = clerkTarget.AddComponent<BoxCollider>();
             clerkCollider.center = Vector3.up * .9f;
             clerkCollider.size = new Vector3(.66f, 1.75f, .6f);
-            clerkTarget.AddComponent<EquipmentHandover>();
+            Handover = clerkTarget.AddComponent<EquipmentHandover>();
+            Handover.Bind(clerk.transform,new Vector3(-14.04f,.77f,4.72f));
 
             var report = Item.Make("SovietRecord", "Советский документ",
                 "СССР · УПРАВЛЕНИЕ КАДРОВ\nЛичное дело № 81-04. Выписка от 14 июня 1986 г.\nДоступ к послужному списку ограничен. Круглая печать смазана.\nНа полях карандашом: «Нью-Йорк. Фамилию не подтверждать».");
@@ -124,6 +133,7 @@ namespace NightChase.Station
                 }
             if (!Board) throw new System.InvalidOperationException("У столов отсутствует доска InformationBoard_01.");
             Board.Bind(report, fatherPhoto, flow);
+            InstallTape();
             var knife = Pickup("Station_Knife", new Vector3(-14.4f, .80f, 4.64f), Item.Make("Knife", "Нож"), new Color(.32f, .38f, .48f));
             var key = Pickup("Station_Key", new Vector3(-13.72f, .80f, 4.60f), Item.Make("Key", "Ключ"), new Color(.65f, .48f, .2f));
             var note = Pickup("Station_Clipping", new Vector3(-14.08f, .80f, 4.93f),
@@ -136,6 +146,36 @@ namespace NightChase.Station
             puzzle.Bind(new[] { knife, key, note }, drawer);
         }
 
+        void InstallTape()
+        {
+            foreach (var root in gameObject.scene.GetRootGameObjects())
+                foreach (var node in root.GetComponentsInChildren<Transform>())
+                {
+                    if (node.name != "TV (1)") continue;
+                    var deck = TapePart(node,"Видеомагнитофон",new Vector3(0,-.08f,0),new Vector3(.43f,.11f,.28f),new Color(.11f,.115f,.12f));
+                    TapePart(deck.transform,"VHS-слот",new Vector3(0,.1f,.505f),new Vector3(.6f,.22f,.03f),Color.black);
+                    deck.AddComponent<BoxCollider>();
+                    if (!node.GetComponent<TapePlayback>()) node.gameObject.AddComponent<TapePlayback>();
+                    return;
+                }
+            Debug.LogWarning("Телевизор TV (1) не найден, кассету 44-Б негде воспроизвести.",this);
+        }
+
+        static GameObject TapePart(Transform parent,string name,Vector3 position,Vector3 scale,Color color)
+        {
+            var part = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            part.name = name;
+            part.transform.SetParent(parent,false);
+            part.transform.localPosition = position;
+            part.transform.localScale = scale;
+            var collider = part.GetComponent<Collider>();
+            collider.enabled = false;
+            Destroy(collider);
+            var material = part.GetComponent<Renderer>().material;
+            material.color = color;
+            return part;
+        }
+
         NavMeshAgent Actor(string name, string model, Vector3 point, Color tint, bool suspect = false)
         {
             var anchor = Marker("Station_" + name + "Spawn", point);
@@ -143,7 +183,9 @@ namespace NightChase.Station
             actor.transform.SetParent(transform, false);
             var hasMesh = NavMesh.SamplePosition(anchor.position, out var hit, 2f, NavMesh.AllAreas);
             actor.transform.SetPositionAndRotation(hasMesh ? hit.position : anchor.position, anchor.rotation);
-            var visual = MixamoNpcVisual.Create(actor.transform, "MixamoNpc/" + model, tint, 0, suspect: suspect);
+            var controller = name == "Chief" ? chiefController : name == "Partner" ? partnerController :
+                name == "Suspect" ? suspectController : null;
+            var visual = MixamoNpcVisual.Create(actor.transform, "MixamoNpc/" + model, tint, 0, suspect: suspect, controller: controller);
             var agent = actor.AddComponent<NavMeshAgent>();
             agent.radius = .26f;
             agent.height = 1.75f;
@@ -153,7 +195,12 @@ namespace NightChase.Station
             return agent;
         }
 
+        [Header("Контроллеры бюро · параметры Speed (float), Sitting (bool)")]
+        [SerializeField] RuntimeAnimatorController partnerController, chiefController, suspectController;
         internal bool SeatingChief { get; set; }
+        readonly Dictionary<NavMeshAgent, float> smoothedSpeeds = new();
+        static readonly int Speed = Animator.StringToHash("Speed");
+        static readonly int Sitting = Animator.StringToHash("Sitting");
         readonly Dictionary<NavMeshAgent, Vector3> previousPositions = new();
 
         void LateUpdate()
@@ -164,7 +211,23 @@ namespace NightChase.Station
                 float speed = previousPositions.TryGetValue(agent, out var previous)
                     ? Vector3.Distance(position, previous) / Mathf.Max(.001f, Time.deltaTime) : 0;
                 previousPositions[agent] = position;
-                if (visual && (!SeatingChief || agent != Chief)) visual.Pose(speed, Time.deltaTime);
+                if (!visual) continue;
+                smoothedSpeeds.TryGetValue(agent,out float prior);
+                speed = Mathf.Lerp(prior,speed < .08f ? 0 : speed,1 - Mathf.Exp(-Time.deltaTime * 12));
+                smoothedSpeeds[agent] = speed;
+                bool sitting = SeatingChief && agent == Chief;
+                var animator = visual.Animator;
+                if (animator && animator.runtimeAnimatorController)
+                {
+                    foreach (var parameter in animator.parameters)
+                    {
+                        if (parameter.nameHash == Speed && parameter.type == AnimatorControllerParameterType.Float)
+                            animator.SetFloat(Speed,sitting ? 0 : speed);
+                        else if (parameter.nameHash == Sitting && parameter.type == AnimatorControllerParameterType.Bool)
+                            animator.SetBool(Sitting,sitting);
+                    }
+                }
+                else if (!sitting) visual.Pose(speed,Time.deltaTime);
             }
         }
 

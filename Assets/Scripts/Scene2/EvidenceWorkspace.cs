@@ -32,6 +32,7 @@ namespace NightChase.Station
                 child.gameObject.SetActive(false);
                 Destroy(child.gameObject);
             }
+            screen.GetComponent<Image>().color = new Color(.07f,.085f,.09f);
             screen.gameObject.SetActive(true);
             Label(screen,title,new(.05f,.89f),new(.69f,.98f),34);
             Button(screen,backLabel,new(.74f,.9f),new(.96f,.97f),back);

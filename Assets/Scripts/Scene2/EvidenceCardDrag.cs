@@ -4,7 +4,7 @@ using UnityEngine.EventSystems;
 
 namespace NightChase.Station
 {
-    sealed class EvidenceCardDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
+    sealed class EvidenceCardDrag : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         RectTransform board, card;
         Vector2 grabOffset;
@@ -12,6 +12,10 @@ namespace NightChase.Station
         Action inspect;
         Func<PointerEventData,bool> drop;
         Vector2 start;
+        internal GameObject HoverCaption { get; set; }
+
+        public void OnPointerEnter(PointerEventData eventData) { if (HoverCaption) HoverCaption.SetActive(true); }
+        public void OnPointerExit(PointerEventData eventData) { if (HoverCaption) HoverCaption.SetActive(false); }
 
         internal void Bind(RectTransform surface, Action<Vector2> savePosition, Action open, Func<PointerEventData,bool> onDrop = null)
         {

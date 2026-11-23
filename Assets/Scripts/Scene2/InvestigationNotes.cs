@@ -10,7 +10,7 @@ namespace NightChase.Station
         internal const string Testimony = "После девяти дверь ещё открывалась.";
         internal bool PhotoRead, Pinned, Linked, TapePinned;
 
-        internal bool CourtSolved, Tape44BHeard;
+        internal bool CourtSolved, Tape44BHeard, Tape44BTaken;
         internal string CourtConclusion =>
             "Кравец стоит рядом с отцом на снимке. На его имя взяли фургон за день до слушания. Его инициалы стоят рядом с отметкой на схеме. Они готовили нападение на суд пятнадцатого сентября."
             + (Tape44BHeard ? "\n\nТеперь понятно, о каком плане отец говорил на записи." : "");
@@ -29,8 +29,8 @@ namespace NightChase.Station
             if (Pinned) ui.Label(screen,Excerpt + "\nИсточник: дело отца, стр. 2, архивный шкаф.",new(.08f,.42f),new(.92f,.6f),27);
             if (Linked) ui.Label(screen,Conclusion,new(.08f,.15f),new(.92f,.38f),27);
             if (TapePinned) ui.Label(screen,Testimony + "\nИсточник: кассета, 00:12.",new(.08f,.04f),new(.62f,.15f),22);
-            if (Tape44BHeard && !CourtSolved)
-                ui.Label(screen,"Кассета 44-Б · Запись отца отмечена.",new(.65f,.22f),new(.95f,.32f),21);
+            if (Tape44BHeard)
+                ui.Label(screen,"Кассета 44-Б\nОтец обсуждал нападение и говорил, что люди из порта согласились помочь.",new(.65f,.24f),new(.95f,.41f),21);
             if (CourtSolved) ui.Button(screen,"Дело Ист-Ривер",new(.65f,.13f),new(.95f,.21f),() =>
             {
                 var detail = ui.Page("Вывод по делу Ист-Ривер",() => Show(flow),"К журналу");

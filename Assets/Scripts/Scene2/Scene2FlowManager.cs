@@ -246,7 +246,7 @@ namespace NightChase.Station
                 Stage.Escort => "Допросная — прямо по коридору, затем налево",
                 Stage.Interrogation => "Подойдите к своему стулу",
                 Stage.Suspension => "Дождитесь распоряжения шефа",
-                Stage.HandoverEquipment => "Сдайте снаряжение в архиве. До конца коридора, направо, затем к столам справа",
+                Stage.HandoverEquipment => "Сдайте вещи дежурной у стойки. Архив в конце коридора, справа",
                 Stage.NoticeBoard => "Осмотрите доску в общем зале со столами следователей",
                 Stage.SearchPuzzle => EvidenceObjective(),
                 Stage.Exit => "Выйдите из бюро",
@@ -297,6 +297,7 @@ namespace NightChase.Station
 
         internal void ClosePanel()
         {
+            if (layout && layout.Handover) layout.Handover.Close();
             UI.Close();
             if (layout && layout.Board) layout.Board.Close();
             inventoryOpen = false;

@@ -25,6 +25,14 @@ namespace NightChase.Station
             return true;
         }
 
+        internal bool RemoveAll(IReadOnlyList<string> ids)
+        {
+            foreach (string id in ids) if (!Has(id)) return false;
+            foreach (string id in ids) items.Remove(id);
+            Changed?.Invoke();
+            return true;
+        }
+
         internal void SeedStreetEquipment()
         {
             Add(Item.Make(InventoryItem.IdCard.ToString(), "Удостоверение"));

@@ -28,7 +28,7 @@ namespace NightChase
 
         public Animator Animator { get; private set; }
 
-        public static MixamoNpcVisual Create(Transform parent, string path, Color shirt, float phase, bool normalize = true, bool suspect = false)
+        public static MixamoNpcVisual Create(Transform parent, string path, Color shirt, float phase, bool normalize = true, bool suspect = false, RuntimeAnimatorController controller = null)
         {
             var prefab = Resources.Load<GameObject>(path);
             if (!prefab)
@@ -43,11 +43,11 @@ namespace NightChase
             pivot.SetParent(mount.transform, false);
             var model = Instantiate(prefab, pivot, false);
             var visual = mount.AddComponent<MixamoNpcVisual>();
-            visual.Configure(model, path, shirt, phase, normalize, suspect);
+            visual.Configure(model, path, shirt, phase, normalize, suspect, controller);
             return visual;
         }
 
-        void Configure(GameObject model, string path, Color shirt, float phase, bool normalize, bool suspect)
+        void Configure(GameObject model, string path, Color shirt, float phase, bool normalize, bool suspect, RuntimeAnimatorController controller)
         {
             modelRoot = model.transform.parent;
             modelRestRotation = modelRoot.localRotation;
@@ -74,6 +74,7 @@ namespace NightChase
 
             Animator.applyRootMotion = false;
             Animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            if (controller) Animator.runtimeAnimatorController = controller;
             if (Animator.runtimeAnimatorController) return;
 
             graph = PlayableGraph.Create("Mixamo NPC");
