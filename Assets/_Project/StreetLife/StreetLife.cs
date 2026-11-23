@@ -19,18 +19,19 @@ namespace NightChase
         const float ReentryDelay = 2f;
 
         [Header("Street traffic")]
-        [SerializeField, Min(1)] float sedanSpeed = 5.5f;
-        [SerializeField, Min(1)] float hatchbackSpeed = 5.1f;
+        [SerializeField, Min(1)] float sedanSpeed = 10.5f;
+        [SerializeField, Min(1)] float hatchbackSpeed = 9.8f;
         [SerializeField, Range(1.15f, 1.55f)] float laneOffset = 1.33f;
         [Header("Oncoming chase car")]
-        [SerializeField, Min(1)] float taxiSpeed = 7.4f;
+        [SerializeField, Min(1)] float taxiSpeed = 12.5f;
         [SerializeField, Min(0)] float taxiDelay = .18f;
         [SerializeField] Vector3 taxiTriggerCenter = new Vector3(-25.6f, 1, -24.1f);
         [SerializeField] Vector3 taxiTriggerSize = new Vector3(5.6f, 3, 6.2f);
         [SerializeField, Range(-13f, 10f)] float taxiEntryX = -10f;
 
         const string ModelPath = "StreetLife/";
-        readonly Car[] cars = new Car[3];
+        readonly Car[] cars = new Car[8];
+        StreetVehicleModels vehicleModels;
         readonly Dictionary<Material, Material> convertedMaterials = new();
         readonly Walker[] walkers = new Walker[6];
         float elapsed;
@@ -73,11 +74,19 @@ namespace NightChase
 
         void Awake()
         {
+            vehicleModels = Resources.Load<StreetVehicleModels>(ModelPath + "StreetVehicleModels");
             cars[0] = CreateCar("sedan", 1.88f, 1.45f, 4.76f, .33f, sedanSpeed, false, 18f);
             cars[1] = CreateCar("hatchback", 1.84f, 1.48f, 4.06f, .32f, hatchbackSpeed, true, 30f);
             float taxiStart = RouteLength - (LegLength + BendLength + taxiEntryX - (WestLane + TurnRadius));
             cars[2] = CreateCar("taxi", 1.88f, 1.65f, 4.76f, .33f, taxiSpeed, true, taxiStart);
             cars[2].Tactical = true;
+            cars[3] = CreateCar("east_sport", 1.88f, 1.45f, 4.60f, .33f, sedanSpeed, false, RouteLength - 14f);
+            cars[4] = CreateCar("east_jeep", 1.88f, 1.65f, 4.48f, .33f, hatchbackSpeed, true, 9f);
+            cars[5] = CreateCar("west_sedan", 1.88f, 1.45f, 4.65f, .33f, sedanSpeed, false, 36f);
+            cars[6] = CreateCar("eastbound_car", 1.84f, 1.48f, 4.06f, .32f, sedanSpeed, false,
+                RouteLength - 43f, "hatchback");
+            cars[7] = CreateCar("eastbound_jeep", 1.88f, 1.65f, 4.48f, .33f, sedanSpeed, false,
+                RouteLength - 29f, "east_jeep");
 
             walkers[0] = CreateWalker("Ch07", -28, -12, -27.6f, 1.29f, 0, new Color(.34f, .16f, .24f));
             walkers[1] = CreateWalker("Remy", 7, -7, -27.5f, 1.12f, 3, new Color(.34f, .30f, .15f));
@@ -252,7 +261,7 @@ namespace NightChase
             body.MoveRotation(rotation);
         }
 
-        Car CreateCar(string modelName, float width, float height, float length, float wheelRadius, float speed, bool reverse, float distance)
+        Car CreateCar(string modelName, float width, float height, float length, float wheelRadius, float speed, bool reverse, float distance, string visualModel = null)
         {
             Rigidbody body = CreateBody(modelName);
             var collision = body.gameObject.AddComponent<BoxCollider>();
@@ -262,19 +271,33 @@ namespace NightChase
             var car = new Car
             {
                 Body = body,
-                Contact = body.gameObject.AddComponent<StreetCar>(),
                 WheelRadius = wheelRadius,
                 Speed = speed,
                 Reverse = reverse,
                 Distance = distance
             };
-            var model = CreateModel(modelName, body.transform);
+            var model = CreateModel(visualModel ?? modelName, body.transform);
+            if (model && FitVehicle(model.transform, body.transform, width, length, out var bounds))
+            {
+                collision.center = bounds.center;
+                collision.size = bounds.size;
+            }
+
+            car.Contact = body.gameObject.AddComponent<StreetCar>();
             if (model)
             {
                 foreach (var part in model.GetComponentsInChildren<Transform>())
-                    if (part.name.StartsWith("Wheel_", System.StringComparison.Ordinal))
-                        car.Wheels.Add(part);
+                    if (IsWheel(part.name)) car.Wheels.Add(part);
             }
+            float totalRadius = 0f;
+            int wheelCount = 0;
+            foreach (var wheel in car.Wheels)
+                if (TryBounds(wheel, body.transform, out var wheelBounds))
+                {
+                    totalRadius += wheelBounds.extents.y;
+                    wheelCount++;
+                }
+            if (wheelCount > 0) car.WheelRadius = Mathf.Max(.05f, totalRadius / wheelCount);
             return car;
         }
 
@@ -302,7 +325,10 @@ namespace NightChase
 
         GameObject CreateModel(string modelName, Transform parent)
         {
-            var prefab = Resources.Load<GameObject>(ModelPath + modelName);
+            var prefab = vehicleModels ? vehicleModels.ForVehicle(modelName) : null;
+            string fallback = modelName == "east_jeep" ? "hatchback"
+                : modelName == "east_sport" || modelName == "west_sedan" ? "sedan" : modelName;
+            if (!prefab) prefab = Resources.Load<GameObject>(ModelPath + fallback);
             if (!prefab)
             {
                 Debug.LogError($"Street Life: model {modelName} is missing.", parent);
@@ -310,6 +336,7 @@ namespace NightChase
             }
 
             var model = Instantiate(prefab, parent, false);
+            model.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             foreach (var renderer in model.GetComponentsInChildren<Renderer>())
             {
@@ -324,6 +351,25 @@ namespace NightChase
                         if (source.HasProperty("_MainTex")) material.mainTexture = source.mainTexture;
                         if (source.HasProperty("_Metallic")) material.SetFloat("_Metallic", source.GetFloat("_Metallic"));
                         if (source.HasProperty("_Glossiness")) material.SetFloat("_Smoothness", source.GetFloat("_Glossiness"));
+                        if (source.HasProperty("_Mode") && source.GetFloat("_Mode") >= 2f)
+                        {
+                            material.SetFloat("_Surface", 1);
+                            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                            material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+                            material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                            material.SetFloat("_ZWrite", 0);
+                            material.SetOverrideTag("RenderType", "Transparent");
+                            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                            material.SetShaderPassEnabled("ShadowCaster", false);
+                        }
+                        if (source.HasProperty("_EmissionColor") && source.IsKeywordEnabled("_EMISSION"))
+                        {
+                            material.SetColor("_EmissionColor", source.GetColor("_EmissionColor"));
+                            material.SetTexture("_EmissionMap", source.GetTexture("_EmissionMap"));
+                            material.EnableKeyword("_EMISSION");
+                        }
                         convertedMaterials.Add(source, material);
                     }
                     materials[i] = material;
@@ -332,6 +378,47 @@ namespace NightChase
             }
 
             return model;
+        }
+
+        static bool IsWheel(string name) =>
+            name == "FL" || name == "FR" || name == "BL" || name == "BR" ||
+            name.StartsWith("Wheel_", System.StringComparison.Ordinal);
+
+        static bool FitVehicle(Transform model, Transform body, float maxWidth, float length, out Bounds bounds)
+        {
+            if (!TryBounds(model, body, out bounds) || bounds.size.z < .01f || bounds.size.x < .01f)
+                return false;
+            float scale = length / bounds.size.z;
+            float widthScale = Mathf.Min(scale, maxWidth / bounds.size.x);
+            model.localScale = Vector3.Scale(model.localScale, new Vector3(widthScale, scale, scale));
+
+            TryBounds(model, body, out bounds);
+            model.localPosition -= new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+            return TryBounds(model, body, out bounds);
+        }
+
+        static bool TryBounds(Transform model, Transform body, out Bounds bounds)
+        {
+            bounds = default;
+            bool found = false;
+            foreach (var renderer in model.GetComponentsInChildren<MeshRenderer>())
+            {
+                Matrix4x4 toBody = body.worldToLocalMatrix * renderer.localToWorldMatrix;
+                Bounds local = renderer.localBounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var corner = new Vector3((i & 1) == 0 ? local.min.x : local.max.x,
+                        (i & 2) == 0 ? local.min.y : local.max.y, (i & 4) == 0 ? local.min.z : local.max.z);
+                    Vector3 point = toBody.MultiplyPoint3x4(corner);
+                    if (found) bounds.Encapsulate(point);
+                    else
+                    {
+                        bounds = new Bounds(point, Vector3.zero);
+                        found = true;
+                    }
+                }
+            }
+            return found;
         }
 
         Rigidbody CreateBody(string name)
