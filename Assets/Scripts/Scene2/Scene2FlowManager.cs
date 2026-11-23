@@ -25,7 +25,8 @@ namespace NightChase.Station
 
         StationLayout layout;
         PuzzleDependencies puzzle;
-        EscortSystem escort;
+        EscortSystem escort, chiefRoute;
+        [SerializeField] RouteGizmos interrogationRoute, detentionRoute;
         SuspensionSequence suspensionSequence;
         Transform eyes;
         StationInteractable highlighted;
@@ -66,6 +67,7 @@ namespace NightChase.Station
             Dialogue.Bind(this);
             puzzle = GetOrAdd<PuzzleDependencies>();
             escort = GetOrAdd<EscortSystem>();
+            chiefRoute = gameObject.AddComponent<EscortSystem>();
             suspensionSequence = GetOrAdd<SuspensionSequence>();
             var exit = GetOrAdd<ExitTrigger>();
             exit.Bind(this);
@@ -80,8 +82,13 @@ namespace NightChase.Station
             Dialogue.Play(arrival ? arrival : StationDialogue.Arrival(), () =>
             {
                 SetStage(Stage.Escort);
-                if (layout.Corridor.GetComponent<Collider>().bounds.Contains(Player.transform.position + Vector3.up))
-                    CorridorReached();
+                var route = detentionRoute ? detentionRoute.Points : layout.CellRoute;
+                if (detentionRoute && !RouteValidator.HasWaypoints(route, detentionRoute))
+                    route = layout.CellRoute;
+                if (!layout.Suspect) Debug.LogError("[EscortSystem] У задержанного отсутствует NavMeshAgent.", this);
+                escort.Begin(layout.Partner, layout.Suspect, null, route);
+                StartCoroutine(PlaceSuspectInCell());
+                CorridorReached();
             });
         }
 
@@ -90,23 +97,77 @@ namespace NightChase.Station
             if (State != Stage.Escort || corridorSpoken || Dialogue.Active) return;
             corridorSpoken = true;
             Dialogue.Play(corridor ? corridor : StationDialogue.Corridor(),
-                () => escort.Begin(Player.transform, layout.Partner, layout.Suspect, layout.Chief, layout.Route));
+                () => chiefRoute.Begin(layout.Chief, null, Player.transform,
+                    interrogationRoute ? interrogationRoute.Points : layout.Route));
+        }
+
+        Transform ChiefDestination
+        {
+            get
+            {
+                var points = interrogationRoute ? interrogationRoute.Points : layout.Route;
+                if (points != null)
+                    for (int i = points.Length - 1; i >= 0; i--)
+                        if (points[i]) return points[i];
+                return layout.Route[layout.Route.Length - 1];
+            }
+        }
+
+        IEnumerator PlaceSuspectInCell()
+        {
+            yield return new WaitUntil(() => escort.Complete);
+            var suspect = layout.Suspect;
+            if (!suspect || Vector3.Distance(suspect.transform.position, layout.CellInterior.position) > 4f)
+                yield break;
+            if (!suspect.isOnNavMesh)
+            {
+                var leaf = layout.CellDoor;
+                var closed = leaf ? leaf.localRotation : Quaternion.identity;
+                if (leaf) leaf.localRotation = closed * Quaternion.Euler(0, 90, 0);
+                foreach (var point in new[] { layout.CellRoute[layout.CellRoute.Length - 1], layout.CellInterior })
+                    while ((suspect.transform.position - point.position).sqrMagnitude > .001f)
+                    {
+                        suspect.transform.position = Vector3.MoveTowards(suspect.transform.position, point.position, 1.8f * Time.deltaTime);
+                        yield return null;
+                    }
+                if (leaf) leaf.localRotation = closed;
+                yield break;
+            }
+            if (!UnityEngine.AI.NavMesh.SamplePosition(layout.CellInterior.position, out var hit, .65f, suspect.areaMask))
+                yield break;
+
+            var cellDoor = layout.CellDoor;
+            Quaternion closedRotation = cellDoor ? cellDoor.localRotation : Quaternion.identity;
+            if (cellDoor) cellDoor.localRotation = closedRotation * Quaternion.Euler(0, 90, 0);
+            suspect.isStopped = false;
+            if (!suspect.SetDestination(hit.position))
+            {
+                if (cellDoor) cellDoor.localRotation = closedRotation;
+                yield break;
+            }
+            float deadline = Time.time + 12f;
+            yield return new WaitUntil(() => Time.time >= deadline || Vector3.Distance(suspect.transform.position, hit.position) < .4f);
+            if (suspect.isOnNavMesh) suspect.isStopped = true;
+            if (cellDoor && Vector3.Distance(suspect.transform.position, hit.position) < .4f)
+                cellDoor.localRotation = closedRotation;
         }
 
         void Update()
         {
             if (!ready) return;
             var key = Keyboard.current;
-            if (State == Stage.Escort && escort.Complete && !UI.Modal &&
-                Vector3.Distance(Player.transform.position, escort.Destination.position) <= 2.2f)
+            if (State == Stage.Escort && chiefRoute.Complete && !UI.Modal &&
+                Vector3.Distance(Player.transform.position, ChiefDestination.position) <= 1.35f)
             {
                 SetStage(Stage.Interrogation);
-                Dialogue.Play(interview ? interview : StationDialogue.Interview(), () =>
+                var seating = GetOrAdd<InterrogationSequence>();
+                StartCoroutine(seating.Run(this, layout, eyes, () => Dialogue.Play(interview ? interview : StationDialogue.Interview(), () =>
                 {
+                    seating.Restore?.Invoke();
                     SetStage(Stage.Suspension);
                     StartCoroutine(suspensionSequence.Run(this, suspension ? suspension : StationDialogue.Suspension(),
                         layout.Chief, layout.ChiefExit));
-                });
+                })));
             }
 
             bool notified = Time.unscaledTime < messageUntil;
@@ -158,14 +219,14 @@ namespace NightChase.Station
             State = next;
             UI.Objective.text = next switch
             {
-                Stage.Arrival => "Фойе",
-                Stage.Escort => "Допросная — первая дверь направо. E — открыть дверь",
-                Stage.Interrogation => "Выслушайте шефа",
+                Stage.Arrival => "Коридор бюро",
+                Stage.Escort => "Допросная — прямо по коридору, затем налево. E — открыть дверь",
+                Stage.Interrogation => "Допросная",
                 Stage.Suspension => "Дождитесь распоряжения шефа",
                 Stage.HandoverEquipment => "Сдайте снаряжение в окошко отдела кадров",
                 Stage.NoticeBoard => "Осмотрите доску в общем зале со столами следователей",
                 Stage.SearchPuzzle => "Найдите три улики в архиве   ·   J — журнал",
-                Stage.Exit => "Выйдите из бюро через фойе",
+                Stage.Exit => "Выйдите из бюро",
                 _ => ""
             };
             layout.Corridor.gameObject.SetActive(next == Stage.Escort);

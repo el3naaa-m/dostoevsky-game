@@ -7,82 +7,180 @@ namespace NightChase.Station
     {
         [SerializeField, Min(1)] float waitDistance = 6f;
         [SerializeField, Min(.1f)] float pace = 2.1f;
-        Transform[] waypoints;
-        NavMeshAgent partner, suspect, chief;
+        NavMeshAgent leader, follower;
         Transform player;
+        Transform[] points;
         int index;
-        float updateAt;
-        bool running;
+        bool issued, running, direct, followerCommanded;
+        int followerIndex;
+        float nextUpdate, lastProgress;
+        Vector3 lastPosition;
+        Vector3 destination;
+        internal const string MissingWaypoints = "[EscortSystem] Ошибка: не назначены waypoints!";
         public bool Complete { get; private set; }
-        internal Transform Destination => waypoints[waypoints.Length - 1];
 
-        internal void Begin(Transform target, NavMeshAgent leader, NavMeshAgent detainee, NavMeshAgent supervisor, Transform[] route)
+        internal void Begin(NavMeshAgent lead, NavMeshAgent companion, Transform observer, Transform[] route)
         {
-            player = target;
-            partner = leader;
-            suspect = detainee;
-            chief = supervisor;
-            waypoints = route;
-            running = true;
-            if (OnMesh(partner)) partner.speed = pace;
-            if (OnMesh(suspect)) suspect.speed = pace;
-            if (OnMesh(chief)) chief.speed = pace + .15f;
+            leader = lead;
+            follower = companion;
+            player = observer;
+            points = route ?? System.Array.Empty<Transform>();
+            index = 0;
+            issued = Complete = followerCommanded = false;
+            loggedDirectPoints.Clear();
+            running = leader;
+            direct = false;
+            followerIndex = 0;
+            if (!leader)
+            {
+                Debug.LogError("[EscortSystem] У ведущего отсутствует NavMeshAgent.", this);
+                return;
+            }
+            leader.enabled = true;
+            if (follower) follower.enabled = true;
+            Debug.Log($"[EscortSystem] Запуск {leader.name}, сопровождаемый {follower?.name}, точек {points.Length}.", this);
+            if (!RouteValidator.HasWaypoints(points, this)) { running = false; return; }
+            RouteValidator.Validate(points, leader);
+            LogAgent(leader);
+            if (follower) LogAgent(follower);
+            lastPosition = leader.transform.position;
+            lastProgress = Time.time;
+            if (!leader.isOnNavMesh || (follower && !follower.isOnNavMesh)) UseDirectRoute();
+            leader.speed = pace;
+            if (follower && follower.isOnNavMesh) follower.speed = pace;
+            Update();
+        }
+
+        static void LogAgent(NavMeshAgent agent)
+        {
+            Debug.Log($"[EscortSystem] {agent.name}: enabled={agent.enabled}, isOnNavMesh={agent.isOnNavMesh}.", agent);
+            if (!agent.isOnNavMesh) Debug.LogWarning($"[EscortSystem] {agent.name} стоит вне NavMesh.", agent);
         }
 
         void Update()
         {
-            if (!running || Time.time < updateAt) return;
-            updateAt = Time.time + .22f;
-            if (index >= waypoints.Length)
+            if (!running || !leader) return;
+            if (direct) { FollowWaypoints(); return; }
+            if (!leader.isOnNavMesh) { UseDirectRoute(); return; }
+            if (Time.time < nextUpdate) return;
+            nextUpdate = Time.time + .2f;
+            bool hasFollower = follower && follower.isOnNavMesh;
+            bool separated = hasFollower && index > 0 && Vector3.Distance(leader.transform.position, follower.transform.position) > 3.4f;
+            leader.isStopped = separated || (player && Vector3.Distance(player.position,leader.transform.position) > waitDistance);
+            if (hasFollower)
             {
-                Stop(partner);
-                Stop(chief);
-                Stop(suspect);
+                follower.isStopped = Vector3.Distance(follower.transform.position,leader.transform.position) < .95f;
+                if (!follower.isStopped && NavMesh.SamplePosition(leader.transform.position, out var followPoint, .65f, follower.areaMask))
+                {
+                    if (follower.SetDestination(followPoint.position) && !followerCommanded)
+                        Debug.Log($"[EscortSystem] {follower.name}: начинаю следовать за {leader.name}.", follower);
+                    followerCommanded = true;
+                }
+            }
+
+            bool waitingForPlayer = player && Vector3.Distance(player.position, leader.transform.position) > waitDistance;
+            if (waitingForPlayer || (leader.transform.position - lastPosition).sqrMagnitude > .04f)
+            {
+                lastPosition = leader.transform.position;
+                lastProgress = Time.time;
+            }
+            if (issued && Time.time - lastProgress > 2f) { UseDirectRoute(); return; }
+
+            if (issued && (leader.transform.position - destination).sqrMagnitude < .36f && !separated)
+            {
+                issued = false;
+                index++;
+            }
+            if (issued && !leader.pathPending && leader.pathStatus != NavMeshPathStatus.PathComplete)
+            {
+                Debug.LogWarning($"Путь к точке {index + 1} прервался. Перехожу к следующей точке.", this);
+                UseDirectRoute();
+                return;
+            }
+            if (issued) return;
+            if (index >= points.Length)
+            {
                 Complete = true;
+                leader.isStopped = true;
+                if (hasFollower) follower.isStopped = true;
                 running = false;
                 return;
             }
 
-            var goal = waypoints[index].position;
-            if (!OnMesh(partner)) return;
-
-            bool atGoal = Vector3.Distance(partner.transform.position, goal) < .85f;
-            if (atGoal)
+            int selected = index;
+            if (!TryPoint(index, .65f, out destination))
             {
-                if (!OnMesh(suspect) || Vector3.Distance(suspect.transform.position, partner.transform.position) < 2.45f)
-                    index++;
+                Debug.LogWarning($"Точка {index + 1} недоступна. Ищу ближайшую достижимую точку.", this);
+                float best = float.PositiveInfinity;
+                Vector3 origin = points[index] ? points[index].position : leader.transform.position;
+                selected = -1;
+                for (int i = index; i < points.Length; i++)
+                {
+                    if (!TryPoint(i, 1.6f, out var candidate)) continue;
+                    float distance = (candidate - origin).sqrMagnitude;
+                    if (distance >= best) continue;
+                    best = distance;
+                    selected = i;
+                    destination = candidate;
+                }
             }
-
-            bool wait = Vector3.Distance(player.position, partner.transform.position) > waitDistance;
-            partner.isStopped = wait;
-            if (OnMesh(chief))
+            if (selected != index || !leader.SetDestination(destination))
             {
-                chief.isStopped = wait;
-                if (!wait) SetGoal(chief, index == waypoints.Length - 1 ? goal + Vector3.forward * .85f : goal);
-            }
-            if (!wait) SetGoal(partner, goal);
-            if (!OnMesh(suspect)) return;
-            suspect.isStopped = wait || Vector3.Distance(suspect.transform.position, partner.transform.position) < 1.05f;
-            if (!suspect.isStopped) SetGoal(suspect, partner.transform.position);
-        }
-
-        readonly NavMeshPath plannedPath = new();
-        void SetGoal(NavMeshAgent agent, Vector3 goal)
-        {
-            if (!NavMesh.SamplePosition(goal, out var hit, .8f, agent.areaMask)) return;
-            if (agent.hasPath && (agent.destination - hit.position).sqrMagnitude < .09f) return;
-            if (!agent.CalculatePath(hit.position, plannedPath) || plannedPath.status != NavMeshPathStatus.PathComplete)
-            {
-                agent.ResetPath();
+                UseDirectRoute();
                 return;
             }
-            foreach (var corner in plannedPath.corners)
-                if (Mathf.Abs(corner.y - hit.position.y) > .85f) { agent.ResetPath(); return; }
-            agent.SetPath(plannedPath);
+            index = selected;
+            lastProgress = Time.time;
+            Debug.Log($"[EscortSystem] Начинаю движение к точке {index}: {points[index].name}, {destination}. NPC: {leader.name}.", leader);
+            issued = true;
         }
 
-        static bool OnMesh(NavMeshAgent agent) => agent && agent.isOnNavMesh;
-        static void Stop(NavMeshAgent agent) { if (OnMesh(agent)) agent.isStopped = true; }
+        void UseDirectRoute()
+        {
+            Debug.LogWarning($"{leader.name}: перехожу на движение по точкам.", leader);
+            direct = true;
+            followerIndex = index;
+            leader.enabled = false;
+            if (follower) follower.enabled = false;
+        }
+
+        void FollowWaypoints()
+        {
+            if (!player || Vector3.Distance(player.position, leader.transform.position) <= waitDistance)
+                Walk(leader.transform, ref index, points.Length);
+            if (follower) Walk(follower.transform, ref followerIndex, Mathf.Min(index, points.Length - 1));
+            if (index < points.Length || (follower && followerIndex < points.Length - 1)) return;
+            running = false;
+            Complete = true;
+        }
+
+        readonly System.Collections.Generic.Dictionary<Transform,int> loggedDirectPoints = new();
+
+        void Walk(Transform actor, ref int pointIndex, int limit)
+        {
+            while (pointIndex < limit && !points[pointIndex]) pointIndex++;
+            if (pointIndex >= limit) return;
+            var goal = points[pointIndex].position;
+            if (!loggedDirectPoints.TryGetValue(actor, out int logged) || logged != pointIndex)
+            {
+                loggedDirectPoints[actor] = pointIndex;
+                Debug.Log($"[EscortSystem] Начинаю движение к точке {pointIndex}: {points[pointIndex].name}, {goal}. NPC: {actor.name}.", actor);
+            }
+            var direction = Vector3.ProjectOnPlane(goal - actor.position, Vector3.up);
+            if (direction.sqrMagnitude > .0025f)
+                actor.rotation = Quaternion.RotateTowards(actor.rotation, Quaternion.LookRotation(direction), 540f * Time.deltaTime);
+            actor.position = Vector3.MoveTowards(actor.position, goal, pace * Time.deltaTime);
+            if ((actor.position - goal).sqrMagnitude < .001f) pointIndex++;
+        }
+
+        bool TryPoint(int i, float radius, out Vector3 result)
+        {
+            result = default;
+            if (!leader || !leader.isOnNavMesh || points == null || i < 0 || i >= points.Length || !points[i] || !NavMesh.SamplePosition(points[i].position, out var hit, radius, leader.areaMask)) return false;
+            if (Mathf.Abs(hit.position.y - points[i].position.y) > .6f) return false;
+
+            result = hit.position;
+            return true;
+        }
     }
 }
-// На Scene2 Mechanics. Точки — пустые GameObject от коридора до допросной.

@@ -15,6 +15,9 @@ namespace NightChase.Station
         internal NavMeshAgent Suspect { get; private set; }
         internal NavMeshAgent Chief { get; private set; }
         internal Transform[] Route { get; private set; }
+        internal Transform[] CellRoute { get; private set; }
+        internal Transform CellInterior { get; private set; }
+        internal Transform CellDoor { get; private set; }
         internal Transform ChiefExit { get; private set; }
         internal NoticeBoard Board { get; private set; }
         internal Transform SearchStart { get; private set; }
@@ -23,9 +26,10 @@ namespace NightChase.Station
 
         internal IEnumerator Build(Scene2FlowManager flow, PuzzleDependencies puzzle, ExitTrigger exit, Texture2D fatherPhoto)
         {
-            var data = Resources.Load<NavMeshData>("StationGroundNavMesh");
+            var data = Resources.Load<NavMeshData>("StationTwoFloorNavMesh");
             if (!data)
             {
+                Physics.SyncTransforms();
                 data = runtimeMesh = StationNavigation.Bake();
                 yield return null;
             }
@@ -33,14 +37,35 @@ namespace NightChase.Station
 
             Partner = Actor("Partner", "Ch33", new Vector3(-11.35f, 0, 18.7f), Color.white);
             Suspect = Actor("Suspect", "Ch08", new Vector3(-9.8f, 0, 18.4f), new Color(.12f, .28f, .66f), true);
-            Chief = Actor("Chief", "Ch06", new Vector3(-10.75f, 0, 15.55f), new Color(.12f, .16f, .22f));
+            Chief = Actor("Chief", "Ch31", new Vector3(-10.75f, 0, 17.25f), new Color(.12f, .16f, .22f));
             Route = new[]
             {
-                Marker("Station_InterviewApproach", new Vector3(-10.7f, 0, 10.48f)),
-                Marker("Station_InterviewThreshold", new Vector3(-12.1f, 0, 10.48f)),
-                Marker("Station_Interview", new Vector3(-14.15f, 0, 10.72f))
+                Marker("SpawnPoint", new Vector3(-10.5f,0,17.55f)),
+                Marker("CorridorPoint1", new Vector3(-10.35f, 0, 13f)),
+                Marker("InterrogationDoor", new Vector3(-8.6f, 0, 13f)),
+                Marker("Station_Interview", new Vector3(-7.4f, 0, 13.5f))
             };
-            ChiefExit = Marker("Station_ChiefExit", new Vector3(-10.2f, 0, 13.5f));
+            CellRoute = new[]
+            {
+                Marker("SpawnPoint", new Vector3(-10.5f,0,17.55f)),
+                Marker("StairsBottom", new Vector3(-11.18f,0,20.42f)),
+                Marker("StairsTurnLower", new Vector3(-11.18f,1.65f,25.2f)),
+                Marker("StairsTurnUpper", new Vector3(-9.82f,1.65f,25.2f)),
+                Marker("StairsTop", new Vector3(-9.82f,3.3f,20.36f)),
+                Marker("CellDoor", new Vector3(-5.45f,3.3f,19.1f))
+            };
+            CellInterior = Marker("CellInterior", new Vector3(-5.45f,3.3f,16.95f));
+            float doorDistance = 2f;
+            foreach (var root in gameObject.scene.GetRootGameObjects())
+                foreach (var door in root.GetComponentsInChildren<Transform>())
+                {
+                    if (!door.parent || door.name != "Door" || !door.parent.name.StartsWith("DoorCell")) continue;
+                    float distance = Vector3.Distance(door.position, CellRoute[CellRoute.Length - 1].position);
+                    if (distance >= doorDistance) continue;
+                    doorDistance = distance;
+                    CellDoor = door;
+                }
+            ChiefExit = Marker("Station_ChiefExit", new Vector3(-10.2f, 0, 13f));
             SearchStart = Marker("Station_SearchStart", new Vector3(-13.25f, 0, 1.7f));
 
             Corridor = Zone("Station_Corridor", new Vector3(-10.5f, .9f, 16.25f), new Vector3(3.4f, 2.2f, 1.6f), flow.CorridorReached);
@@ -74,21 +99,31 @@ namespace NightChase.Station
             var anchor = Marker("Station_" + name + "Spawn", point);
             var actor = new GameObject(name);
             actor.transform.SetParent(transform, false);
-            var hasMesh = NavMesh.SamplePosition(anchor.position, out var hit, 1.6f, NavMesh.AllAreas);
+            var hasMesh = NavMesh.SamplePosition(anchor.position, out var hit, 2f, NavMesh.AllAreas);
             actor.transform.SetPositionAndRotation(hasMesh ? hit.position : anchor.position, anchor.rotation);
             var visual = MixamoNpcVisual.Create(actor.transform, "MixamoNpc/" + model, tint, 0, suspect: suspect);
             var agent = actor.AddComponent<NavMeshAgent>();
             agent.radius = .26f;
             agent.height = 1.75f;
             agent.stoppingDistance = .18f;
+            if (hasMesh && !agent.isOnNavMesh) agent.Warp(hit.position);
             actors.Add((agent, visual));
             return agent;
         }
 
-        void Update()
+        internal bool SeatingChief { get; set; }
+        readonly Dictionary<NavMeshAgent, Vector3> previousPositions = new();
+
+        void LateUpdate()
         {
             foreach (var (agent, visual) in actors)
-                if (visual) visual.Pose(agent.isOnNavMesh ? agent.velocity.magnitude : 0, Time.deltaTime);
+            {
+                var position = agent.transform.position;
+                float speed = previousPositions.TryGetValue(agent, out var previous)
+                    ? Vector3.Distance(position, previous) / Mathf.Max(.001f, Time.deltaTime) : 0;
+                previousPositions[agent] = position;
+                if (visual && (!SeatingChief || agent != Chief)) visual.Pose(speed, Time.deltaTime);
+            }
         }
 
         Transform Marker(string name, Vector3 point)

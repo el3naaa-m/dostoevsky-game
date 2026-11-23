@@ -18,7 +18,11 @@ namespace NightChase.Station
         RawImage photo;
         RectTransform details;
         TMP_FontAsset font;
-        public bool Modal => panel.gameObject.activeSelf;
+        RectTransform dialogueStrip;
+        TextMeshProUGUI dialogueSpeaker, dialogueLine, dialogueNext;
+        Image dialogueAvatar;
+        RectTransform dialogueOptions;
+        public bool Modal => panel.gameObject.activeSelf || dialogueStrip.gameObject.activeSelf;
 
         public void Build()
         {
@@ -52,6 +56,30 @@ namespace NightChase.Station
             layout.childControlHeight = true;
             layout.childForceExpandHeight = false;
             layout.childAlignment = TextAnchor.UpperCenter;
+            dialogueStrip = Rect(canvas, "Dialogue strip", Vector2.zero, Vector2.zero);
+            dialogueStrip.anchorMin = new Vector2(.035f,.025f);
+            dialogueStrip.anchorMax = new Vector2(.965f,.245f);
+            dialogueStrip.offsetMin = dialogueStrip.offsetMax = Vector2.zero;
+            var backdrop = dialogueStrip.gameObject.AddComponent<Image>();
+            backdrop.color = new Color(.028f,.044f,.048f,.92f);
+            var border = dialogueStrip.gameObject.AddComponent<Outline>();
+            border.effectColor = new Color(.59f,.51f,.32f,.8f);
+            border.effectDistance = new Vector2(1,-1);
+            var portrait = Rect(dialogueStrip, "Portrait", Vector2.zero, new Vector2(105,105));
+            portrait.anchorMin = portrait.anchorMax = new Vector2(0,.5f);
+            portrait.anchoredPosition = new Vector2(68,0);
+            dialogueAvatar = portrait.gameObject.AddComponent<Image>();
+            dialogueAvatar.preserveAspect = true;
+            dialogueAvatar.raycastTarget = false;
+            dialogueOptions = Rect(dialogueStrip, "Choices", Vector2.zero, Vector2.zero);
+            dialogueOptions.anchorMin = new Vector2(.13f,.04f);
+            dialogueOptions.anchorMax = new Vector2(.965f,.45f);
+            dialogueOptions.offsetMin = dialogueOptions.offsetMax = Vector2.zero;
+            backdrop.raycastTarget = false;
+            dialogueSpeaker = DialogueLabel("", new Vector2(.025f,.68f), new Vector2(.94f,.95f), 24, TextAlignmentOptions.Left);
+            dialogueLine = DialogueLabel("", new Vector2(.025f,.25f), new Vector2(.965f,.69f), 25, TextAlignmentOptions.MidlineLeft);
+            dialogueSpeaker.color = new Color(.91f,.78f,.55f);
+            dialogueNext = DialogueLabel("► [Пробел] Далее", new Vector2(.55f,.025f), new Vector2(.965f,.24f), 20, TextAlignmentOptions.MidlineRight);
             var cover = Rect(canvas, "Fade", Vector2.zero, Vector2.zero);
             cover.anchorMin = Vector2.zero;
             cover.anchorMax = Vector2.one;
@@ -161,7 +189,76 @@ namespace NightChase.Station
             }
         }
 
-        public void Close() => panel.gameObject.SetActive(false);
+        TextMeshProUGUI DialogueLabel(string value, Vector2 min, Vector2 max, int size, TextAlignmentOptions align)
+        {
+            var label = Text(dialogueStrip, value, Vector2.zero, Vector2.zero, size);
+            label.rectTransform.anchorMin = min;
+            label.rectTransform.anchorMax = max;
+            label.rectTransform.offsetMin = label.rectTransform.offsetMax = Vector2.zero;
+            label.alignment = align;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 14;
+            label.fontSizeMax = size;
+            return label;
+        }
+
+        void Update()
+        {
+            if (dialogueNext && dialogueNext.gameObject.activeInHierarchy)
+                dialogueNext.alpha = .85f + .15f * Mathf.Sin(Time.unscaledTime * 3);
+        }
+
+        public void ShowDialogue(string speaker, string line, Sprite portrait, DialogueData.Choice[] choices, Action<int> select)
+        {
+            panel.gameObject.SetActive(false);
+            dialogueSpeaker.text = speaker;
+            dialogueLine.text = line;
+            bool branching = choices != null && choices.Length > 0;
+            dialogueAvatar.sprite = portrait;
+            dialogueAvatar.enabled = portrait;
+            float left = portrait ? .13f : .025f;
+            dialogueSpeaker.rectTransform.anchorMin = new Vector2(left, branching ? .79f : .68f);
+            dialogueSpeaker.rectTransform.anchorMax = new Vector2(.965f,.95f);
+            dialogueLine.rectTransform.anchorMin = new Vector2(left, branching ? .48f : .25f);
+            dialogueLine.rectTransform.anchorMax = new Vector2(.965f,branching ? .79f : .69f);
+            dialogueStrip.anchorMax = new Vector2(.965f,branching ? Mathf.Min(.65f,.27f + choices.Length * .032f) : .245f);
+            dialogueNext.gameObject.SetActive(!branching);
+            foreach (Transform old in dialogueOptions)
+            {
+                old.gameObject.SetActive(false);
+                Destroy(old.gameObject);
+            }
+            if (branching)
+                for (int i = 0; i < choices.Length; i++)
+                {
+                    int selected = i;
+                    var row = Rect(dialogueOptions, "Choice", Vector2.zero, Vector2.zero);
+                    float top = 1f - i / (float)choices.Length;
+                    row.anchorMin = new Vector2(0,top - .88f / choices.Length);
+                    row.anchorMax = new Vector2(1,top);
+                    row.offsetMin = row.offsetMax = Vector2.zero;
+                    var fill = row.gameObject.AddComponent<Image>();
+                    fill.color = new Color(.19f,.23f,.235f);
+                    var button = row.gameObject.AddComponent<Button>();
+                    button.targetGraphic = fill;
+                    button.onClick.AddListener(() => select(selected));
+                    var label = Text(row, choices[i].label, Vector2.zero, Vector2.zero, 20);
+                    label.rectTransform.anchorMin = new Vector2(.025f,0);
+                    label.rectTransform.anchorMax = new Vector2(.98f,1);
+                    label.rectTransform.offsetMin = label.rectTransform.offsetMax = Vector2.zero;
+                    label.enableAutoSizing = true;
+                    label.fontSizeMin = 12;
+                    label.fontSizeMax = 20;
+                    label.alignment = TextAlignmentOptions.MidlineLeft;
+                }
+            dialogueStrip.gameObject.SetActive(true);
+        }
+
+        public void Close()
+        {
+            panel.gameObject.SetActive(false);
+            dialogueStrip.gameObject.SetActive(false);
+        }
 
         TextMeshProUGUI Text(Transform parent, string value, Vector2 pos, Vector2 size, int points)
         {

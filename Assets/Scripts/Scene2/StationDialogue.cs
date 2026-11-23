@@ -7,8 +7,8 @@ namespace NightChase.Station
             new("Джо", "Если шеф спросит, мы привезли его в том виде, в каком нашли."));
 
         public static DialogueData Corridor() => DialogueData.From(
-            new("Шеф", "Детектив. В допросную. Первая дверь направо."),
-            new("Шеф", "Джо, веди задержанного. Дверь за собой закрой."));
+            new("Шеф", "Детектив. В допросную. Прямо по коридору, потом налево."),
+            new("Шеф", "Джо, отведи задержанного в камеру наверху."));
 
         public static DialogueData Interview() => UnityEngine.Resources.Load<DialogueData>("StationInterview");
 

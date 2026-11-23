@@ -6,16 +6,24 @@ namespace NightChase.Station
 {
     static class StationNavigation
     {
+        static bool IsCellDoorLeaf(Transform current)
+        {
+            for (; current && current.parent; current = current.parent)
+                if (current.name == "Door" && current.parent.name.StartsWith("DoorCell"))
+                    return true;
+            return false;
+        }
+
         public static NavMeshData Bake()
         {
             if (NavMesh.GetSettingsCount() == 0) return null;
             var sources = new List<NavMeshBuildSource>();
-            var bounds = new Bounds(new Vector3(-8, .85f, 7f), new Vector3(36, 3.1f, 26f));
+            var bounds = new Bounds(new Vector3(-8,2.5f,11f), new Vector3(36,9f,35f));
             NavMeshBuilder.CollectSources(bounds, ~0, NavMeshCollectGeometry.PhysicsColliders, 0,
                 new List<NavMeshBuildMarkup>(), sources);
             sources.RemoveAll(source => source.component &&
                 (source.component.GetComponentInParent<FirstPersonController>() ||
-                source.component.GetComponentInParent<QA_Door>() ||
+                source.component.GetComponentInParent<QA_Door>() || IsCellDoorLeaf(source.component.transform) ||
                 (source.component is Collider collider && collider.isTrigger)));
             var settings = NavMesh.GetSettingsByIndex(0);
             settings.agentClimb = .30f;
@@ -35,7 +43,7 @@ namespace NightChase.Station
             var data = Bake();
             if (!data) { Debug.LogError("Не найдено геометрии для NavMesh бюро."); return; }
             const string folder = "Assets/Scripts/Scene2/Resources";
-            const string path = folder + "/StationGroundNavMesh.asset";
+            const string path = folder + "/StationTwoFloorNavMesh.asset";
             if (!UnityEditor.AssetDatabase.IsValidFolder(folder))
                 UnityEditor.AssetDatabase.CreateFolder("Assets/Scripts/Scene2", "Resources");
             var prior = UnityEditor.AssetDatabase.LoadAssetAtPath<NavMeshData>(path);
