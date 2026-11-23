@@ -9,7 +9,7 @@ namespace NightChase.Station
     public sealed class InterrogationSequence : MonoBehaviour
     {
         [SerializeField] ChairInteraction chiefChair, playerChair;
-        [SerializeField] Transform chiefSeat, playerSeat;
+        [SerializeField] Transform chiefSeat, playerSeat, chiefOfficeSeat;
         // Опционально: назначьте Humanoid-клип Stand To Sit без Loop Time.
         // Можно указать Animator шефа вручную. Playables сохраняет последний кадр.
         [SerializeField] Animator chiefAnimator, playerAnimator;
@@ -56,6 +56,23 @@ namespace NightChase.Station
             if (!chiefAnimator) chiefAnimator = chief.GetComponentInChildren<Animator>();
             yield return Animate(chiefAnimator, "Chief", chief.transform, chiefGoal, .36f);
             ChiefSeated = true;
+        }
+
+        internal IEnumerator SeatChiefInOffice(StationLayout layout)
+        {
+            var chief = layout.Chief;
+            var office = layout.ChiefOfficeRoute[layout.ChiefOfficeRoute.Length - 1];
+            if (!chief || !office || Vector3.Distance(chief.transform.position, office.position) > 1.2f)
+                yield break;
+
+            var position = chiefOfficeSeat ? chiefOfficeSeat.position : new Vector3(.91f, 0, -2.46f);
+            var facing = chiefOfficeSeat ? chiefOfficeSeat.rotation : Quaternion.identity;
+            chief.enabled = false;
+            // Используем ту же анимацию, что в допросной, и удерживаем последний кадр.
+            yield return Move(chief.transform, position, facing, .55f);
+            layout.SeatingChief = true;
+            if (!chiefAnimator) chiefAnimator = chief.GetComponentInChildren<Animator>();
+            yield return Animate(chiefAnimator, "Chief office", chief.transform, position, .36f);
         }
 
         internal IEnumerator SeatPlayer(Scene2FlowManager flow, Transform eyes)

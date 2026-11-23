@@ -169,6 +169,13 @@ namespace NightChase.Station
             if (key == null || Dialogue.Active) { Highlight(null); return; }
             if (UI.Modal)
             {
+                if (UI.Workspace.Active)
+                {
+                    if (key.escapeKey.wasPressedThisFrame) UI.Workspace.Back();
+                    else if (key.leftArrowKey.wasPressedThisFrame) UI.Workspace.Left?.Invoke();
+                    else if (key.rightArrowKey.wasPressedThisFrame) UI.Workspace.Right?.Invoke();
+                    return;
+                }
                 if (key.escapeKey.wasPressedThisFrame || (inventoryOpen && key.rKey.wasPressedThisFrame))
                     ClosePanel();
                 return;
@@ -182,7 +189,7 @@ namespace NightChase.Station
                 if (key.eKey.wasPressedThisFrame) StartCoroutine(SitForInterview());
                 return;
             }
-            if (key.jKey.wasPressedThisFrame) { GetOrAdd<EvidenceLog>().Show(this); return; }
+            if (key.jKey.wasPressedThisFrame) { InvestigationNotes.For(this).Show(this); return; }
             if (key.rKey.wasPressedThisFrame) { ShowInventory(); return; }
 
             if (!Physics.Raycast(eyes.position, eyes.forward, out var hit, interactionRange, ~0, QueryTriggerInteraction.Ignore))
@@ -228,7 +235,7 @@ namespace NightChase.Station
             yield return seating.Stand(layout, Player.transform, eyes);
             SetStage(Stage.Suspension);
             yield return suspensionSequence.Run(this, suspension ? suspension : StationDialogue.Suspension(),
-                layout.Chief, layout.ChiefOfficeRoute);
+                layout, seating);
             Lock(false);
         }
 

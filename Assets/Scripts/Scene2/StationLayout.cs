@@ -99,10 +99,16 @@ namespace NightChase.Station
             var report = Item.Make("SovietRecord", "Советский документ",
                 "СССР · УПРАВЛЕНИЕ КАДРОВ\nЛичное дело № 81-04. Выписка от 14 июня 1986 г.\nДоступ к послужному списку ограничен. Круглая печать смазана.\nНа полях карандашом: «Нью-Йорк. Фамилию не подтверждать».");
             foreach (var root in gameObject.scene.GetRootGameObjects())
-                foreach (var surface in root.GetComponentsInChildren<BoxCollider>())
-                    if (surface.name == "InformationBoard_06 (1)")
-                        Board = surface.gameObject.AddComponent<NoticeBoard>();
-            if (!Board) throw new System.InvalidOperationException("В зале следователей отсутствует доска InformationBoard_06 (1).");
+                foreach (var item in root.GetComponentsInChildren<Transform>())
+                {
+                    if (item.name is "Rack (1)" or "Rack (10)")
+                        if (!item.GetComponent<ArchiveRack>()) item.gameObject.AddComponent<ArchiveRack>();
+                    if (item.name == "InformationBoard_01")
+                        Board = item.TryGetComponent<NoticeBoard>(out var board) ? board : item.gameObject.AddComponent<NoticeBoard>();
+                    if (item.name is "FileCabinetA (1)" or "FileCabinetA (6)" or "FileCabinetA (7)")
+                        if (!item.GetComponent<ArchiveCabinet>()) item.gameObject.AddComponent<ArchiveCabinet>();
+                }
+            if (!Board) throw new System.InvalidOperationException("У столов отсутствует доска InformationBoard_01.");
             Board.Bind(report, fatherPhoto, flow);
             var knife = Pickup("Station_Knife", new Vector3(-14.4f, .80f, 4.64f), Item.Make("Knife", "Нож"), new Color(.32f, .38f, .48f));
             var key = Pickup("Station_Key", new Vector3(-13.72f, .80f, 4.60f), Item.Make("Key", "Ключ"), new Color(.65f, .48f, .2f));

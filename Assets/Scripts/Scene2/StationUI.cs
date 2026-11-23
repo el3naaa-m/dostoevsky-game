@@ -22,7 +22,8 @@ namespace NightChase.Station
         TextMeshProUGUI dialogueSpeaker, dialogueLine, dialogueNext;
         Image dialogueAvatar;
         RectTransform dialogueOptions;
-        public bool Modal => panel.gameObject.activeSelf || dialogueStrip.gameObject.activeSelf;
+        internal EvidenceWorkspace Workspace { get; private set; }
+        public bool Modal => (Workspace && Workspace.Active) || panel.gameObject.activeSelf || dialogueStrip.gameObject.activeSelf;
 
         public void Build(bool linear = false)
         {
@@ -86,6 +87,8 @@ namespace NightChase.Station
             dialogueLine = DialogueLabel("", new Vector2(.025f,.25f), new Vector2(.965f,.69f), 25, TextAlignmentOptions.MidlineLeft);
             dialogueSpeaker.color = new Color(.91f,.78f,.55f);
             dialogueNext = DialogueLabel("[Пробел] Далее", new Vector2(.55f,.025f), new Vector2(.965f,.24f), 20, TextAlignmentOptions.MidlineRight);
+            Workspace = gameObject.AddComponent<EvidenceWorkspace>();
+            Workspace.Build(canvas,font);
             var cover = Rect(canvas, "Fade", Vector2.zero, Vector2.zero);
             cover.anchorMin = Vector2.zero;
             cover.anchorMax = Vector2.one;
@@ -264,6 +267,7 @@ namespace NightChase.Station
         {
             panel.gameObject.SetActive(false);
             dialogueStrip.gameObject.SetActive(false);
+            Workspace.Close();
         }
 
         TextMeshProUGUI Text(Transform parent, string value, Vector2 pos, Vector2 size, int points)
