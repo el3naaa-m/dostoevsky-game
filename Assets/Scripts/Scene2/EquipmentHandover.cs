@@ -8,7 +8,7 @@ namespace NightChase.Station
 {
     public sealed class EquipmentHandover : StationInteractable
     {
-        internal const string HeroSurname = "Достоевский";
+        internal const string HeroSurname = "Карамазов";
         static readonly InventoryItem[] Gear = { InventoryItem.Pistol, InventoryItem.IdCard, InventoryItem.Handcuffs };
         static readonly string[] Ids = { "Pistol", "IdCard", "Handcuffs" };
         static readonly string[] Labels = { "Оружие", "Удостоверение", "Наручники" };

@@ -7,7 +7,9 @@ namespace NightChase.Station
     {
         Item evidence;
         Texture2D fatherPhoto;
-        readonly Vector2[] positions = { new(.06f,.42f), new(.36f,.42f), new(.66f,.42f), new(.36f,.02f) };
+        const int PortraitCard = 0;
+        const int TapeCard = 2;
+        readonly Vector2[] positions = { new(.06f,.42f), new(.36f,.42f), new(.36f,.02f) };
         static readonly Vector2 CardSize = new(.26f,.46f);
         int linking = -1;
         string feedback;
@@ -30,19 +32,20 @@ namespace NightChase.Station
             flow.Audio.PlayOneShot(flow.Audio.paper);
             Inspecting = true;
             if (!TryGetComponent<CourtCaseBoard>(out var board)) board = gameObject.AddComponent<CourtCaseBoard>();
-            board.Show(flow, flow.ClosePanel, onMatch: () => CollectStoryDocument(flow));
+            board.Show(flow, flow.ClosePanel, onMatch: () => CollectStoryDocument(flow),
+                onOpenNorthEntrance: () => ShowBoard(flow, true));
         }
 
         void ShowBoard(Scene2FlowManager flow, bool zoom = false)
         {
             var ui = flow.UI.Workspace;
-            var screen = ui.Page("Доска с уликами", () =>
+            var screen = ui.Page("Улики о северном входе", () =>
             {
-                if (linking < 0) { flow.ClosePanel(); return; }
+                if (linking < 0) { Use(flow); return; }
                 linking = -1;
                 feedback = null;
                 ShowBoard(flow);
-            }, linking < 0 ? "Закрыть  [Esc]" : "Отменить  [Esc]");
+            }, linking < 0 ? "К доске  [Esc]" : "Отменить  [Esc]");
             var board = EvidenceWorkspace.Rect(screen,"Corkboard",new(.035f,.11f),new(.965f,.885f));
             board.gameObject.AddComponent<Image>().color = new Color(.43f,.30f,.19f);
             var notes = InvestigationNotes.For(flow);
@@ -58,13 +61,12 @@ namespace NightChase.Station
             string hint = linking >= 0 ? $"Выбрано: {CardTitle(linking)}. Нажмите другую карточку."
                 : feedback ?? "Нажмите на улику или перетащите её.";
             ui.Label(screen,hint,new(.05f,.025f),new(notes.Linked ? .50f : .73f,.09f),22);
-            AddCard(flow,board,0,"Служебный портрет",fatherPhoto);
+            AddCard(flow,board,PortraitCard,"Служебный портрет",fatherPhoto);
             AddCard(flow,board,1,"Брайтонский вестник",null);
-            if (notes.Pinned) AddCard(flow,board,2,CardTitle(2),null);
-            if (notes.TapePinned) AddCard(flow,board,3,CardTitle(3),null);
+            if (notes.TapePinned) AddCard(flow,board,TapeCard,CardTitle(TapeCard),null);
             Canvas.ForceUpdateCanvases();
             UpdateThread(board);
-            if (flow.State == Scene2FlowManager.Stage.SearchPuzzle && evidence && !flow.Inventory.Has(evidence.id))
+            if (notes.CourtSolved && flow.State == Scene2FlowManager.Stage.SearchPuzzle && evidence && !flow.Inventory.Has(evidence.id))
                 ui.Button(screen,"Снять документ", new(.76f,.025f),new(.965f,.09f),() => TakeDocument(flow));
             if (notes.Linked)
                 ui.Button(screen,"Хронология",new(.52f,.025f),new(.74f,.09f),() =>
@@ -80,7 +82,7 @@ namespace NightChase.Station
         {
             var ui = flow.UI.Workspace;
             var card = EvidenceWorkspace.Rect(board,title,positions[index],positions[index] + CardSize);
-            card.gameObject.AddComponent<Image>().color = index == 0 ? new Color(.86f,.82f,.72f) : new Color(.81f,.72f,.51f);
+            card.gameObject.AddComponent<Image>().color = index == PortraitCard ? new Color(.86f,.82f,.72f) : new Color(.81f,.72f,.51f);
             var heading = ui.Label(card,title,new(.07f,.83f),new(.94f,.98f),24);
             heading.color = new Color(.15f,.12f,.08f);
             if (picture)
@@ -95,7 +97,7 @@ namespace NightChase.Station
             }
             else
             {
-                var text = ui.Label(card,index == 3 ? InvestigationNotes.Testimony + "\n\nКассета, 00:12" : index == 2 ? InvestigationNotes.Excerpt + "\n\nДело отца, стр. 2" : "18 октября 1996 года\n\nПоследний вечер на Брайтоне\n\nСвидетельница видела, как мужчина вышел через кухню.",new(.08f,.08f),new(.92f,.8f),24);
+                var text = ui.Label(card,index == TapeCard ? InvestigationNotes.Testimony + "\n\nКассета, 00:12" : "18 октября 1996 года\n\nПоследний вечер на Брайтоне\n\nСвидетельница видела, как мужчина вышел через кухню.",new(.08f,.08f),new(.92f,.8f),24);
                 text.color = new Color(.15f,.12f,.08f);
             }
             if (linking == index) card.GetComponent<Image>().color = new Color(.91f,.67f,.34f);
@@ -117,13 +119,12 @@ namespace NightChase.Station
             var screen = ui.Page(title,() => ShowBoard(flow),"К доске");
             string text = index switch
             {
-                0 => reversed ? "Рукописная подпись\n\n" + InvestigationNotes.Photo : "Служебная фотография. Бруклин, 1994 год.",
-                3 => InvestigationNotes.Testimony + "\n\nИсточник: кассета, 00:12.",
-                2 => InvestigationNotes.Excerpt + "\n\nИсточник: дело отца, стр. 2.",
+                PortraitCard => reversed ? "Рукописная подпись\n\n" + InvestigationNotes.Photo : "Служебная фотография. Бруклин, 1994 год.",
+                TapeCard => InvestigationNotes.Testimony + "\n\nИсточник: кассета, 00:12.",
                 _ => EvidenceLog.Find("BrightonNote")?.bodyRU ?? "Свидетельница видела, как мужчина вышел через кухню."
             };
             if (reversed) picture = null;
-            if (index == 0)
+            if (index == PortraitCard)
                 ui.Button(screen,reversed ? "Лицевая сторона" : "Перевернуть",new(.1f,.025f),new(.34f,.105f),() =>
                 {
                     if (!reversed) InvestigationNotes.For(flow).PhotoRead = true;
@@ -149,7 +150,7 @@ namespace NightChase.Station
             ui.Reveal(detail);
         }
 
-        static string CardTitle(int index) => index == 0 ? "Служебный портрет" : index == 1 ? "Брайтонский вестник" : index == 2 ? "Выписка из дела" : "Показания свидетеля";
+        static string CardTitle(int index) => index == PortraitCard ? "Служебный портрет" : index == TapeCard ? "Показания свидетеля" : "Брайтонский вестник";
 
         void Connect(Scene2FlowManager flow, int second)
         {
@@ -157,8 +158,8 @@ namespace NightChase.Station
             if (first == second) return;
             linking = -1;
             var notes = InvestigationNotes.For(flow);
-            bool correctPair = (first == 0 && second == 2) || (first == 2 && second == 0);
-            if (!correctPair || !notes.PhotoRead || !notes.Pinned)
+            bool correctPair = (first == PortraitCard && second == TapeCard) || (first == TapeCard && second == PortraitCard);
+            if (!correctPair || !notes.PhotoRead)
             {
                 feedback = correctPair ? "Проверьте оборот фотографии." : "Пока не вижу связи.";
                 ShowBoard(flow);
@@ -174,8 +175,8 @@ namespace NightChase.Station
         void UpdateThread(RectTransform board)
         {
             if (!thread) return;
-            Vector2 a = Vector2.Scale(positions[0] + CardSize * .5f, board.rect.size);
-            Vector2 b = Vector2.Scale(positions[2] + CardSize * .5f, board.rect.size);
+            Vector2 a = Vector2.Scale(positions[PortraitCard] + CardSize * .5f, board.rect.size);
+            Vector2 b = Vector2.Scale(positions[TapeCard] + CardSize * .5f, board.rect.size);
             var delta = b - a;
             thread.anchoredPosition = (a + b) * .5f;
             thread.sizeDelta = new Vector2(delta.magnitude,4);

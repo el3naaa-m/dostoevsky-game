@@ -31,11 +31,13 @@ namespace NightChase.Station
         readonly RectTransform[] threads = new RectTransform[2];
         RectTransform board;
         Action match;
+        Action openNorthEntrance;
 
-        internal void Show(Scene2FlowManager flow, Action back, string hint = null, Action onMatch = null)
+        internal void Show(Scene2FlowManager flow, Action back, string hint = null, Action onMatch = null, Action onOpenNorthEntrance = null)
         {
             var ui = flow.UI.Workspace;
             if (onMatch != null) match = onMatch;
+            if (onOpenNorthEntrance != null) openNorthEntrance = onOpenNorthEntrance;
             var screen = ui.Page("Доска с уликами", back, "Закрыть  [Esc]");
             board = EvidenceWorkspace.Rect(screen,"Доска дела",new(.04f,.15f),new(.96f,.88f));
             board.gameObject.AddComponent<Image>().color = new Color(.36f,.25f,.17f);
@@ -91,7 +93,9 @@ namespace NightChase.Station
             }
             Canvas.ForceUpdateCanvases();
             DrawThreads();
-            ui.Label(screen,hint ?? "Перетащите карточки в три слота. Нажмите на оригинал для осмотра.",new(.04f,.025f),new(.72f,.135f),22);
+            ui.Label(screen,hint ?? "Перетащите карточки в три слота. Нажмите на оригинал для осмотра.",new(.04f,.025f),new(.47f,.135f),22);
+            if (openNorthEntrance != null)
+                ui.Button(screen,"Северный вход",new(.49f,.04f),new(.72f,.13f),openNorthEntrance);
             ui.Button(screen,"Сопоставить",new(.74f,.04f),new(.96f,.13f),() => Check(flow,back));
         }
 

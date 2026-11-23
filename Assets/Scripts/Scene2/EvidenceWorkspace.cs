@@ -80,7 +80,7 @@ namespace NightChase.Station
             return label;
         }
 
-        internal void Button(Transform parent,string value,Vector2 min,Vector2 max,Action action)
+        internal Button Button(Transform parent,string value,Vector2 min,Vector2 max,Action action)
         {
             var row = Rect(parent,value,min,max);
             var fill = row.gameObject.AddComponent<Image>();
@@ -89,6 +89,7 @@ namespace NightChase.Station
             button.targetGraphic = fill;
             button.onClick.AddListener(() => action());
             Label(row,value,new(.045f,.08f),new(.96f,.92f),23);
+            return button;
         }
     }
 }
