@@ -99,7 +99,7 @@ namespace NightChase.Station
             corridorSpoken = true;
             Dialogue.Play(corridor ? corridor : StationDialogue.Corridor(),
                 () => chiefRoute.Begin(layout.Chief, null, Player.transform,
-                    interrogationRoute ? interrogationRoute.Points : layout.Route));
+                    interrogationRoute ? interrogationRoute.Points : layout.Route, movementSpeed: layout.ChiefWalkSpeed));
         }
 
         Transform ChiefDestination
@@ -155,6 +155,7 @@ namespace NightChase.Station
         void Update()
         {
             if (!ready) return;
+            if (State == Stage.Interrogation && Dialogue.Active) layout.LookAtPlayer(eyes);
             int count = InvestigationUnlocked ? InvestigationNotes.For(this).FatherCaseCount : -1;
             if (count != displayedEvidence)
             {

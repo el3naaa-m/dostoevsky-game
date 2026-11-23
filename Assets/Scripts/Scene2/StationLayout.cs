@@ -18,8 +18,11 @@ namespace NightChase.Station
         internal Transform[] CellRoute { get; private set; }
         internal Transform CellInterior { get; private set; }
         internal Transform CellDoor { get; private set; }
-        internal Transform[] ChiefOfficeRoute { get; private set; }
+        
         internal Transform OfficeBoard { get; private set; }
+        [SerializeField] Transform chiefOfficeBoard;
+        [SerializeField, Min(.3f)] float chiefWalkSpeed = 1.45f;
+        internal float ChiefWalkSpeed => chiefWalkSpeed;
         internal NoticeBoard Board { get; private set; }
         internal EquipmentHandover Handover { get; private set; }
         internal Transform SearchStart { get; private set; }
@@ -40,7 +43,7 @@ namespace NightChase.Station
             gameObject.AddComponent<StationStairMaterials>().Repair();
             Partner = Actor("Partner", "Ch33", new Vector3(-11.1f, 0, 19.6f), Color.white);
             Suspect = Actor("Suspect", "Ch08", new Vector3(-9.9f, 0, 20.15f), new Color(.12f, .28f, .66f), true);
-            Chief = Actor("Chief", "Ch31", new Vector3(-10.15f, 0, 14.25f), new Color(.12f, .16f, .22f));
+            Chief = Actor("Chief", "Ch31", new Vector3(-10.15f, 0, 15.35f), new Color(.12f, .16f, .22f));
             foreach (var actor in new[] { Partner, Chief })
             {
                 Vector3 facing = flow.Player.transform.position - actor.transform.position;
@@ -51,7 +54,8 @@ namespace NightChase.Station
             {
                 Marker("CorridorPoint1", new Vector3(-10.35f, 0, 13f)),
                 Marker("InterrogationDoor", new Vector3(-8.6f, 0, 13f)),
-                Marker("Station_Interview", new Vector3(-7.4f, 0, 13.5f))
+                Marker("Station_InterviewAisle", new Vector3(-7.45f, 0, 13.52f)),
+                Marker("Station_Interview", FindInterviewStandingPoint())
             };
             foreach (var root in gameObject.scene.GetRootGameObjects())
                 foreach (var node in root.GetComponentsInChildren<Transform>())
@@ -93,24 +97,14 @@ namespace NightChase.Station
             }
             CellInterior = Marker("CellInterior", interior);
 
-            ChiefOfficeRoute = new[]
-            {
-                Marker("Station_ChiefInterviewInside", new Vector3(-8.1f, 0, 13f)),
-                Marker("Station_ChiefExit", new Vector3(-10.45f, 0, 13f)),
-                Marker("Station_ChiefCorridorMid", new Vector3(-10.45f, 0, 7f)),
-                Marker("Station_ChiefCorridorEnd", new Vector3(-10.45f, 0, -.85f)),
-                Marker("Station_ChiefTurnLeft", new Vector3(-7.5f, 0, -.85f)),
-                Marker("Station_ChiefHallDoor", new Vector3(-7.5f, 0, 0f)),
-                Marker("Station_ChiefOfficeHall", new Vector3(-7.5f, 0, 1.35f)),
-                Marker("Station_ChiefHallWall", new Vector3(-3.5f, 0, 1.35f)),
-                Marker("Station_ChiefAlongWall", new Vector3(.75f, 0, 1.35f)),
-                Marker("Station_ChiefOfficeDoor", new Vector3(.75f, 0, -.55f)),
-                Marker("Station_ChiefOffice", new Vector3(1.75f, 0, -.90f))
-            };
-            OfficeBoard = Marker("Station_ChiefWhiteboard",new Vector3(1.78f,1.65f,-.085f));
-            if (!OfficeBoard.TryGetComponent<WhiteboardGenerator>(out var whiteboard))
-                whiteboard = OfficeBoard.gameObject.AddComponent<WhiteboardGenerator>();
-            whiteboard.Build();
+            OfficeBoard = chiefOfficeBoard;
+            if (!OfficeBoard)
+                foreach (var root in gameObject.scene.GetRootGameObjects())
+                    foreach (var node in root.GetComponentsInChildren<Transform>())
+                    {
+                        if (node.name == "InformationBoard_06") OfficeBoard = node;
+                        else if (!OfficeBoard && node.name == "InformationBoard_06 (1)") OfficeBoard = node;
+                    }
             SearchStart = Marker("Station_SearchStart", new Vector3(-13.25f, 0, 1.7f));
 
             Corridor = Zone("Station_Corridor", new Vector3(-10.5f, .9f, 16.25f), new Vector3(3.4f, 2.2f, 1.6f), flow.CorridorReached);
@@ -188,6 +182,74 @@ namespace NightChase.Station
             var material = part.GetComponent<Renderer>().material;
             material.color = color;
             return part;
+        }
+
+        internal Transform[] BuildChiefOfficeRoute()
+        {
+            if (!Chief || !OfficeBoard) return System.Array.Empty<Transform>();
+            var origin = Chief.transform.position;
+            if (!NavMesh.SamplePosition(origin,out var start,.55f,Chief.areaMask))
+                return System.Array.Empty<Transform>();
+            var surface = OfficeBoard.GetComponentInChildren<Collider>();
+            Vector3 center = surface ? surface.bounds.center : OfficeBoard.position;
+            Vector3 front = Vector3.ProjectOnPlane(OfficeBoard.forward,Vector3.up).normalized;
+            center.y = start.position.y;
+            var path = new NavMeshPath();
+            // Точка стоит перед лицевой стороной доски. Оба параметра перепроверяем после привязки к NavMesh.
+            foreach (float offset in new[] { 0f, -.40f, .40f })
+            {
+                Vector3 requested = center + front * 1.28f + Vector3.Cross(Vector3.up,front)*offset;
+                if (!NavMesh.SamplePosition(requested,out var goal,.3f,Chief.areaMask)) continue;
+                float separation = Vector3.Dot(goal.position-center,front);
+                if (separation < 1f || separation > 1.5f || Mathf.Abs(goal.position.y - start.position.y) > .35f) continue;
+                if (Physics.CheckCapsule(goal.position+Vector3.up*.36f,goal.position+Vector3.up*1.48f,
+                    .24f,Physics.DefaultRaycastLayers,QueryTriggerInteraction.Ignore)) continue;
+                if (!NavMesh.CalculatePath(start.position,goal.position,Chief.areaMask,path) ||
+                    path.status != NavMeshPathStatus.PathComplete) continue;
+
+                var route = new List<Transform>();
+                foreach (var corner in path.corners)
+                {
+                    if (Mathf.Abs(corner.y-start.position.y) > .55f) { route.Clear(); break; }
+                    if (Vector3.Distance(corner,start.position) < .22f) continue;
+                    var anchor = Marker("Station_ChiefBoardPath_" + route.Count,corner);
+                    anchor.position = corner;
+                    route.Add(anchor);
+                }
+                if (route.Count > 0) return route.ToArray();
+            }
+            Debug.LogWarning("Шеф: нет доступного пути к лицевой стороне InformationBoard_06.",OfficeBoard);
+            return System.Array.Empty<Transform>();
+        }
+
+        Vector3 FindInterviewStandingPoint()
+        {
+            var candidates = new[]
+            {
+                new Vector3(-5.32f,0,14.72f),
+                new Vector3(-5.85f,0,14.5f),
+                new Vector3(-7f,0,14.55f),
+                new Vector3(-7.45f,0,13.95f)
+            };
+            foreach (var point in candidates)
+            {
+                if (!NavMesh.SamplePosition(point,out var hit,.25f,NavMesh.AllAreas)) continue;
+                if (Physics.CheckCapsule(hit.position+Vector3.up*.36f,hit.position+Vector3.up*1.48f,
+                    .25f,Physics.DefaultRaycastLayers,QueryTriggerInteraction.Ignore)) continue;
+                return hit.position;
+            }
+            return candidates[candidates.Length-1];
+        }
+
+        internal void LookAtPlayer(Transform view)
+        {
+            if (!Chief || !view) return;
+            Vector3 direction = view.position - Chief.transform.position;
+            direction.y = 0;
+            if (direction.sqrMagnitude < .01f) return;
+            // Поворот вокруг вертикали сохраняет естественный наклон головы.
+            var target = Quaternion.LookRotation(direction);
+            Chief.transform.rotation = Quaternion.Slerp(Chief.transform.rotation,target,1 - Mathf.Exp(-Time.unscaledDeltaTime*7));
         }
 
         NavMeshAgent Actor(string name, string model, Vector3 point, Color tint, bool suspect = false)

@@ -20,10 +20,12 @@ namespace NightChase.Station
         public bool Complete { get; private set; }
         internal bool Failed { get; private set; }
         bool requireNavMesh;
+        float activePace;
 
-        internal void Begin(NavMeshAgent lead, NavMeshAgent companion, Transform observer, Transform[] route, bool navMeshOnly = false)
+        internal void Begin(NavMeshAgent lead, NavMeshAgent companion, Transform observer, Transform[] route, bool navMeshOnly = false, float movementSpeed = 0)
         {
             requireNavMesh = navMeshOnly;
+            activePace = movementSpeed > 0 ? movementSpeed : pace;
             Failed = false;
             leader = lead;
             follower = companion;
@@ -53,8 +55,9 @@ namespace NightChase.Station
                 NavMesh.SamplePosition(leader.transform.position,out var nearby,.45f,leader.areaMask))
                 leader.Warp(nearby.position);
             if (!leader.isOnNavMesh || (follower && !follower.isOnNavMesh)) UseDirectRoute();
-            leader.speed = pace;
-            if (follower && follower.isOnNavMesh) follower.speed = pace;
+            leader.speed = activePace;
+            if (requireNavMesh) leader.stoppingDistance = .14f;
+            if (follower && follower.isOnNavMesh) follower.speed = activePace;
             Update();
         }
 
@@ -93,7 +96,8 @@ namespace NightChase.Station
             }
             if (issued && Time.time - lastProgress > 2f) { UseDirectRoute(); return; }
 
-            if (issued && (leader.transform.position - destination).sqrMagnitude < .36f && !separated)
+            float arrivalRadius = requireNavMesh ? .27f : .6f;
+            if (issued && (leader.transform.position - destination).sqrMagnitude < arrivalRadius*arrivalRadius && !separated)
             {
                 issued = false;
                 index++;
@@ -120,7 +124,7 @@ namespace NightChase.Station
             }
 
             int selected = index;
-            if (!TryPoint(index, .65f, out destination))
+            if (!TryPoint(index, requireNavMesh ? .34f : .65f, out destination))
             {
                 Debug.LogWarning($"Точка {index + 1} недоступна. Ищу ближайшую достижимую точку.", this);
                 float best = float.PositiveInfinity;
@@ -218,7 +222,7 @@ namespace NightChase.Station
             var direction = Vector3.ProjectOnPlane(goal - actor.position, Vector3.up);
             if (direction.sqrMagnitude > .0025f)
                 actor.rotation = Quaternion.RotateTowards(actor.rotation, Quaternion.LookRotation(direction), 540f * Time.deltaTime);
-            actor.position = Vector3.MoveTowards(actor.position, goal, pace * Time.deltaTime);
+            actor.position = Vector3.MoveTowards(actor.position, goal, activePace * Time.deltaTime);
             if ((actor.position - goal).sqrMagnitude < .001f) pointIndex++;
         }
 

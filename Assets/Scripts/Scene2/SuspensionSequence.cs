@@ -18,8 +18,12 @@ namespace NightChase.Station
             if (layout.Chief)
             {
                 var departure = gameObject.AddComponent<EscortSystem>();
-                departure.Begin(layout.Chief, null, null, layout.ChiefOfficeRoute, navMeshOnly: true);
-                StartCoroutine(FaceBoardOnArrival(departure, layout));
+                var route = layout.BuildChiefOfficeRoute();
+                if (route.Length > 0)
+                {
+                    departure.Begin(layout.Chief, null, null, route, navMeshOnly: true, movementSpeed: layout.ChiefWalkSpeed);
+                    StartCoroutine(FaceBoardOnArrival(departure, layout));
+                }
             }
             flow.SetStage(Scene2FlowManager.Stage.HandoverEquipment);
         }
