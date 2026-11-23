@@ -27,6 +27,7 @@ namespace NightChase.Station
             if (flow.State == Scene2FlowManager.Stage.NoticeBoard)
                 flow.SetStage(Scene2FlowManager.Stage.SearchPuzzle);
             flow.Lock(true);
+            flow.Audio.PlayOneShot(flow.Audio.paper);
             Inspecting = true;
             ShowBoard(flow, true);
         }

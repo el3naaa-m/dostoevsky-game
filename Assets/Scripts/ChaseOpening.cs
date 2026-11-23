@@ -177,6 +177,7 @@ namespace NightChase
                 if (traffic) traffic.ArmChaseTraffic(player.transform);
                 suspect.Follow(suspectWaypoints, suspectRunSpeed);
                 chaseActive = true;
+                NightChase.Station.AudioManager.Instance?.BeginPursuit();
             }
 
             if (!partner) yield break;

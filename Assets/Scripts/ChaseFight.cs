@@ -158,6 +158,7 @@ namespace NightChase
 
         void Resolve(bool hit)
         {
+            NightChase.Station.AudioManager.Instance?.FightCue(hit);
             roundActive = false;
             ring.transform.parent.gameObject.SetActive(false);
             reactionUntil = Time.time + ReactionTime;

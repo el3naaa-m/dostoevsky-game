@@ -17,7 +17,12 @@ namespace NightChase.Station
 
         internal Vector3 PulledPosition(Vector3 seatPosition) => seatPosition + back;
 
-        public IEnumerator SitDown() => Slide(rest + back);
+        public IEnumerator SitDown()
+        {
+            if ((transform.position - (rest + back)).sqrMagnitude > .0001f)
+                AudioManager.Instance?.ChairSlideAt(transform.position);
+            yield return Slide(rest + back);
+        }
         public IEnumerator StandUp() => Slide(rest);
 
         IEnumerator Slide(Vector3 goal)

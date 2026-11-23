@@ -46,6 +46,7 @@ namespace NightChase
             restraint = 1;
             cuffs.transform.SetParent(suspectRoot, true);
             cuffs.transform.SetPositionAndRotation(WristCenter(), suspectRoot.rotation);
+            NightChase.Station.AudioManager.Instance?.PlayHandcuffs();
 
             var partner = Partner = FindPartner(suspect);
             Transform searchTarget = new GameObject("Search target").transform;

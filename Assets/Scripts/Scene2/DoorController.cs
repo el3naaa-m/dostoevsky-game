@@ -11,6 +11,7 @@ namespace NightChase.Station
         Transform player, chief;
         Quaternion closed;
         float holdUntil;
+        bool wasOpen;
 
         internal void Bind(Transform playerRoot, Transform chiefRoot)
         {
@@ -32,6 +33,12 @@ namespace NightChase.Station
             if (!leaf) return;
             if (Near(player) || Near(chief)) Open();
             bool open = Time.time < holdUntil;
+            if (open != wasOpen)
+            {
+                wasOpen = open;
+                var audio = AudioManager.Instance;
+                if (audio && audio.interviewDoor) AudioSource.PlayClipAtPoint(audio.interviewDoor, leaf.position, open ? .44f : .35f);
+            }
             var target = open ? closed * Quaternion.Euler(0, openAngle, 0) : closed;
             leaf.localRotation = Quaternion.RotateTowards(leaf.localRotation, target,
                 (open ? openingSpeed : closingSpeed) * Time.deltaTime);
