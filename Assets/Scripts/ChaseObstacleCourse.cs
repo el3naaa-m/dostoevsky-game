@@ -10,13 +10,13 @@ namespace NightChase
         const float CorridorWidth = 2.92f;
         const float GateZ = -1.8f;
         const float GateHeight = 1.52f;
-        static readonly float[] Hurdles = { 15.2f, 8.3f };
+        static readonly float[] DefaultHurdles = { 15.2f, 8.3f };
+        float[] hurdles = DefaultHurdles;
 
         readonly List<ChaseTrigger> tutorialZones = new();
         readonly List<Hint> hints = new();
         CharacterController player;
         ChaseTrigger finishZone;
-        Mesh wireMesh;
         bool tutorialActive;
         GUIStyle hintStyle;
 
@@ -31,18 +31,16 @@ namespace NightChase
             player = controller.GetComponent<CharacterController>();
             Transform package = FindArt(street, "Discarded package");
             Transform bin = FindArt(street, "Waste container");
-            Transform rail = FindArt(street, "Steel railing");
 
             PlaceArtObstacle(package, "Sidewalk packages", new Vector3(-15.6f, .142f, -26.3f),
                 new Vector3(1.10f, .63f, .93f), true);
             PlaceArtObstacle(bin, "Road waste container", new Vector3(-9.8f, 0, -18.35f),
                 new Vector3(1.82f, .92f, .90f), true);
 
-            foreach (float z in Hurdles)
-                PlaceArtObstacle(rail, "Low steel railing", new Vector3(CorridorX, 0, z),
-                    new Vector3(CorridorWidth, .43f, .19f), false);
-
-            BuildFence(rail);
+            var generator = FindAnyObjectByType<ObstacleGenerator>();
+            if (!generator || generator.gameObject.scene != gameObject.scene)
+                generator = gameObject.AddComponent<ObstacleGenerator>();
+            hurdles = generator.Build(transform,CorridorX,CorridorWidth,DefaultHurdles,GateZ,GateHeight);
             var gateZone = ChaseTrigger.Create(transform, "Climb interaction trigger",
                 new Vector3(CorridorX, 1.15f, GateZ), new Vector3(2.70f, 2.8f, 3.15f));
             gameObject.AddComponent<ChasePlayerClimb>().Initialize(controller, eyes, gateZone, GateZ);
@@ -101,7 +99,7 @@ namespace NightChase
             height = duration = 0;
             if (Mathf.Abs(position.x - CorridorX) > 1.28f || target.z >= position.z) return false;
 
-            foreach (float z in Hurdles)
+            foreach (float z in hurdles)
                 if (TryCross(position, target, z, .82f, out landing))
                 {
                     height = .70f;
@@ -164,56 +162,6 @@ namespace NightChase
             Solid(root, size, carve);
         }
 
-        void BuildFence(Transform rail)
-        {
-            var root = Anchor("Fixed chain-link fence", new Vector3(CorridorX, 0, GateZ));
-            if (rail) CopyArt(rail, root, new Vector3(CorridorWidth, GateHeight, .14f));
-            Solid(root, new Vector3(CorridorWidth, GateHeight, .16f), false);
-
-            var sourceRenderer = rail ? rail.GetComponentInChildren<MeshRenderer>() : null;
-            if (!sourceRenderer) return;
-            var vertices = new List<Vector3>();
-            var indices = new List<int>();
-            for (float start = -.60f; start < CorridorWidth; start += .20f)
-            {
-                float left = Mathf.Max(0, start);
-                float right = Mathf.Min(start + .72f, CorridorWidth);
-                if (right <= left) continue;
-                float y0 = Mathf.Lerp(.08f, GateHeight - .06f, (left - start) / .72f);
-                float y1 = Mathf.Lerp(.08f, GateHeight - .06f, (right - start) / .72f);
-                float x0 = left - CorridorWidth / 2f;
-                float x1 = right - CorridorWidth / 2f;
-                AddWire(vertices, indices, new Vector3(x0, y0, 0), new Vector3(x1, y1, 0));
-                AddWire(vertices, indices, new Vector3(x0, GateHeight - y0, 0),
-                    new Vector3(x1, GateHeight - y1, 0));
-            }
-
-            wireMesh = new Mesh { name = "Chain-link infill" };
-            wireMesh.SetVertices(vertices);
-            wireMesh.SetTriangles(indices, 0);
-            wireMesh.RecalculateNormals();
-            var infill = new GameObject("Chain-link infill");
-            infill.transform.SetParent(root, false);
-            infill.AddComponent<MeshFilter>().sharedMesh = wireMesh;
-            infill.AddComponent<MeshRenderer>().sharedMaterial = sourceRenderer.sharedMaterial;
-        }
-
-        static void AddWire(List<Vector3> vertices, List<int> indices, Vector3 from, Vector3 to)
-        {
-            Vector3 width = Vector3.Cross(Vector3.forward, (to - from).normalized) * .008f;
-            int i = vertices.Count;
-            vertices.Add(from - width);
-            vertices.Add(to - width);
-            vertices.Add(to + width);
-            vertices.Add(from + width);
-            indices.AddRange(new[] { i, i + 1, i + 2, i, i + 2, i + 3 });
-            vertices.Add(from - width);
-            vertices.Add(to - width);
-            vertices.Add(to + width);
-            vertices.Add(from + width);
-            indices.AddRange(new[] { i + 4, i + 6, i + 5, i + 4, i + 7, i + 6 });
-        }
-
         Transform Anchor(string name, Vector3 position)
         {
             var root = new GameObject(name).transform;
@@ -259,9 +207,5 @@ namespace NightChase
             obstacle.carveOnlyStationary = false;
         }
 
-        void OnDestroy()
-        {
-            if (wireMesh) Destroy(wireMesh);
-        }
     }
 }

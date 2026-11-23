@@ -19,13 +19,13 @@ namespace NightChase.Station
         internal int CurrentIndex => index;
 
         // Оба режима используют один Canvas. Улица сохраняет собственные блокировки камеры и игрока.
-        internal static StationUI CreateView(Transform parent, bool linear = false)
+        internal static StationUI CreateView(Transform parent, bool linear = false, bool interactive = false)
         {
             var template = Resources.Load<GameObject>("SharedDialogueCanvas");
             var view = template ? Instantiate(template, parent, false).GetComponent<StationUI>()
                 : new GameObject("Dialogue Canvas").AddComponent<StationUI>();
             if (!view.transform.parent) view.transform.SetParent(parent, false);
-            view.Build(linear);
+            view.Build(linear, interactive);
             return view;
         }
 

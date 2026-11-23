@@ -26,7 +26,7 @@ namespace NightChase.Station
         internal EvidenceWorkspace Workspace { get; private set; }
         public bool Modal => (Workspace && Workspace.Active) || panel.gameObject.activeSelf || dialogueStrip.gameObject.activeSelf;
 
-        public void Build(bool linear = false)
+        public void Build(bool linear = false, bool interactive = false)
         {
             font = TMP_FontAsset.CreateFontAsset(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
             var view = GetComponent<Canvas>();
@@ -41,8 +41,8 @@ namespace NightChase.Station
             var scale = canvas.gameObject.AddComponent<CanvasScaler>();
             scale.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scale.referenceResolution = new Vector2(1280, 720);
-            if (!linear) canvas.gameObject.AddComponent<GraphicRaycaster>();
-            if (!linear && !FindAnyObjectByType<EventSystem>())
+            if (!linear || interactive) canvas.gameObject.AddComponent<GraphicRaycaster>();
+            if ((!linear || interactive) && !FindAnyObjectByType<EventSystem>())
             {
                 var events = new GameObject("Station Events", typeof(EventSystem));
                 events.transform.SetParent(transform, false);
