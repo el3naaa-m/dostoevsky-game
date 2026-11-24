@@ -11,6 +11,8 @@ namespace NightChase.Station
         [SerializeField] AudioClip[] beginning, action, office, city, cars;
         [SerializeField] AudioClip[] asphalt, softFloor, metalSteps, stepRecordings, jumps, landings, breath, impacts;
         [SerializeField] AudioClip miss, handcuffs, dialogueClick;
+        [SerializeField] AudioClip endingMusic, clockTick;
+        AudioSource ticking;
         AudioSource music, streetMusic, feet, breathing;
         CharacterController motor;
         FirstPersonController movement;
@@ -66,6 +68,22 @@ namespace NightChase.Station
             source.volume = target;
             if (target == 0) StopLoop(source);
         }
+
+        internal void BeginEndingMusic()
+        {
+            if (!endingMusic) return;
+            FadeVolume(music, 0, 1.5f);
+            music = PlayLoop(endingMusic, "Ending music", transform.position, 0, false);
+            FadeVolume(music, .21f, 1.5f);
+        }
+
+        internal void StartCountdownAudio()
+        {
+            if (clockTick && !ticking)
+                ticking = PlayLoop(clockTick, "Countdown", transform.position, .13f, false);
+        }
+
+        internal void EndCountdownAudio() => FadeVolume(ticking, 0, .25f);
 
         internal void BeginPursuit()
         {

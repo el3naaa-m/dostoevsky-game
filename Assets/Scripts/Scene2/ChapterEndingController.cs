@@ -38,6 +38,7 @@ namespace NightChase.Station
                 notes.FatherCaseCount != 3 || !notes.FinalRecorded) return;
 
             started = true;
+            flow.Audio.BeginEndingMusic();
             flow.Lock(true);
             Cursor.visible = false;
             flow.SetStage(Scene2FlowManager.Stage.ChapterEnding);
@@ -63,6 +64,7 @@ namespace NightChase.Station
             timer.color = new Color(.98f,.88f,.74f);
             timer.alpha = 0;
             countdownStart = Time.unscaledTimeAsDouble;
+            flow.Audio.StartCountdownAudio();
             UpdateTimer();
             yield return FadeText(timer, .65f);
             flow.SetStage(Scene2FlowManager.Stage.Exit);
@@ -87,6 +89,7 @@ namespace NightChase.Station
             int seconds = Mathf.Clamp(CountdownSeconds - (int)System.Math.Floor(Time.unscaledTimeAsDouble - countdownStart),0,CountdownSeconds);
             if (seconds == displayedSeconds) return;
             displayedSeconds = seconds;
+            if (seconds == 0) flow.Audio.EndCountdownAudio();
             timer.text = FormatCountdown(seconds);
         }
 
@@ -136,6 +139,7 @@ namespace NightChase.Station
 
             yield return flow.Fade(1, 1.3f);
             timer.gameObject.SetActive(false);
+            flow.Audio.EndCountdownAudio();
             var title = flow.UI.ChapterLabel("Chapter end title","ПРОДОЛЖЕНИЕ СЛЕДУЕТ...",new(.06f,.40f),new(.94f,.60f),43,true);
             title.color = new Color(.93f,.94f,.95f);
             title.characterSpacing = 7;

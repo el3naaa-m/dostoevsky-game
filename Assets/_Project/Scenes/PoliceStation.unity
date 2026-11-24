@@ -87465,6 +87465,8 @@ MonoBehaviour:
   dialogueClick: {fileID: 8300000, guid: b41e3aa8c6ed491498f34cb9a4c0abe6, type: 3}
   handcuffs: {fileID: 8300000, guid: 39b55703356e4b10bdbf80977a61ea26, type: 3}
   bureau: 1
+  endingMusic: {fileID: 8300000, guid: bd9c0a0533db46d79ef17195c4a7cc41, type: 3}
+  clockTick: {fileID: 8300000, guid: c31c608d1c9449d6ad35a0697750d663, type: 3}
   chairSlide: {fileID: 8300000, guid: 5e597030f1c047b897b94416ca3594d3, type: 3}
   fanLoop: {fileID: 8300000, guid: 89a78ec9cbc242fb8b777ee42561bfec, type: 3}
   action:
